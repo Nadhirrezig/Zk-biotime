@@ -154,6 +154,10 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
   **Employé** (employee + period, 4 day counts, day-by-day list).
 - Exports use what is on screen (filters + sort): `src/zkreport/export.py` (Excel, HTML),
   `ui/table_export.py` (PDF via QPrinter, print dialog).
+- **Look**: the client prefers this layout (tabs on top, date row, 3 export buttons, Filtre
+  dropdown). A sidebar redesign was tried and **reverted** at their request; do not
+  reintroduce it. Only the 4 cards were restyled: icon tile + label + number + hint, soft
+  shadow, selected = tinted card with solid tile (`ui/stat_cards.py` only).
 
 ## Code map
 - `src/zkreport/engine/`: pure Python (guarded by `tests/test_engine_purity.py`).
