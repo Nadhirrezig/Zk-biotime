@@ -1,0 +1,308 @@
+       table_name       |        column_name        |        data_type         
+------------------------+---------------------------+--------------------------
+ att_attschedule        | id                        | integer
+ att_attschedule        | start_date                | date
+ att_attschedule        | end_date                  | date
+ att_attschedule        | employee_id               | integer
+ att_attschedule        | shift_id                  | integer
+ att_attshift           | id                        | integer
+ att_attshift           | alias                     | character varying
+ att_attshift           | cycle_unit                | smallint
+ att_attshift           | shift_cycle               | integer
+ att_attshift           | work_weekend              | boolean
+ att_attshift           | weekend_type              | smallint
+ att_attshift           | work_day_off              | boolean
+ att_attshift           | day_off_type              | smallint
+ att_attshift           | auto_shift                | smallint
+ att_attshift           | enable_ot_rule            | boolean
+ att_attshift           | frequency                 | smallint
+ att_attshift           | ot_rule                   | uuid
+ att_attshift           | company_id                | integer
+ att_calculatelastdate  | id                        | integer
+ att_calculatelastdate  | last_date                 | timestamp with time zone
+ att_departmentschedule | id                        | integer
+ att_departmentschedule | create_time               | timestamp with time zone
+ att_departmentschedule | create_user               | character varying
+ att_departmentschedule | change_time               | timestamp with time zone
+ att_departmentschedule | change_user               | character varying
+ att_departmentschedule | status                    | smallint
+ att_departmentschedule | start_date                | date
+ att_departmentschedule | end_date                  | date
+ att_departmentschedule | department_id             | integer
+ att_departmentschedule | shift_id                  | integer
+ att_holiday            | id                        | integer
+ att_holiday            | alias                     | character varying
+ att_holiday            | start_date                | date
+ att_holiday            | duration_day              | smallint
+ att_holiday            | enable_ot_rule            | boolean
+ att_holiday            | ot_rule                   | uuid
+ att_holiday            | department_id             | integer
+ att_holiday            | att_group_id              | integer
+ att_holiday            | color_setting             | character varying
+ att_holiday            | end_date                  | date
+ att_leave              | workflowinstance_ptr_id   | integer
+ att_leave              | start_time                | timestamp with time zone
+ att_leave              | end_time                  | timestamp with time zone
+ att_leave              | apply_reason              | text
+ att_leave              | apply_time                | timestamp with time zone
+ att_leave              | attachment                | character varying
+ att_leave              | pay_code_id               | integer
+ att_leave              | leave_day                 | double precision
+ att_manuallog          | workflowinstance_ptr_id   | integer
+ att_manuallog          | punch_time                | timestamp with time zone
+ att_manuallog          | punch_state               | character varying
+ att_manuallog          | work_code_id              | integer
+ att_manuallog          | apply_reason              | text
+ att_manuallog          | apply_time                | timestamp with time zone
+ att_manuallog          | attachment                | character varying
+ att_paycode            | id                        | integer
+ att_paycode            | create_time               | timestamp with time zone
+ att_paycode            | create_user               | character varying
+ att_paycode            | change_time               | timestamp with time zone
+ att_paycode            | change_user               | character varying
+ att_paycode            | status                    | smallint
+ att_paycode            | code                      | character varying
+ att_paycode            | name                      | character varying
+ att_paycode            | code_type                 | smallint
+ att_paycode            | tag                       | smallint
+ att_paycode            | fixed_code                | smallint
+ att_paycode            | is_work                   | boolean
+ att_paycode            | fixed_hours               | numeric
+ att_paycode            | is_paid                   | boolean
+ att_paycode            | is_benefit                | boolean
+ att_paycode            | round_off                 | smallint
+ att_paycode            | min_val                   | numeric
+ att_paycode            | display_format            | smallint
+ att_paycode            | symbol                    | character varying
+ att_paycode            | display_order             | smallint
+ att_paycode            | desc                      | text
+ att_paycode            | is_display                | boolean
+ att_paycode            | is_default                | boolean
+ att_paycode            | color_setting             | character varying
+ att_payloadbase        | uuid                      | character varying
+ att_payloadbase        | att_date                  | date
+ att_payloadbase        | weekday                   | smallint
+ att_payloadbase        | check_in                  | timestamp with time zone
+ att_payloadbase        | check_out                 | timestamp with time zone
+ att_payloadbase        | duration                  | integer
+ att_payloadbase        | duty_duration             | integer
+ att_payloadbase        | work_day                  | double precision
+ att_payloadbase        | clock_in                  | timestamp with time zone
+ att_payloadbase        | clock_out                 | timestamp with time zone
+ att_payloadbase        | total_time                | integer
+ att_payloadbase        | duty_worked               | integer
+ att_payloadbase        | actual_worked             | integer
+ att_payloadbase        | unscheduled               | integer
+ att_payloadbase        | remaining                 | integer
+ att_payloadbase        | total_worked              | integer
+ att_payloadbase        | late                      | integer
+ att_payloadbase        | early_leave               | integer
+ att_payloadbase        | short                     | integer
+ att_payloadbase        | absent                    | integer
+ att_payloadbase        | leave                     | integer
+ att_payloadbase        | exception                 | character varying
+ att_payloadbase        | day_off                   | smallint
+ att_payloadbase        | break_time_id             | character varying
+ att_payloadbase        | emp_id                    | integer
+ att_payloadbase        | overtime_id               | character varying
+ att_payloadbase        | timetable_id              | integer
+ att_payloadexception   | uuid                      | character varying
+ att_payloadexception   | start_time                | timestamp with time zone
+ att_payloadexception   | end_time                  | timestamp with time zone
+ att_payloadexception   | duration                  | integer
+ att_payloadexception   | days                      | double precision
+ att_payloadexception   | data_type                 | smallint
+ att_payloadexception   | description               | character varying
+ att_payloadexception   | item_id                   | integer
+ att_payloadexception   | skd_id                    | character varying
+ att_shiftdetail        | id                        | integer
+ att_shiftdetail        | in_time                   | time without time zone
+ att_shiftdetail        | out_time                  | time without time zone
+ att_shiftdetail        | day_index                 | integer
+ att_shiftdetail        | shift_id                  | integer
+ att_shiftdetail        | time_interval_id          | integer
+ att_timeinterval       | id                        | integer
+ att_timeinterval       | alias                     | character varying
+ att_timeinterval       | use_mode                  | smallint
+ att_timeinterval       | in_time                   | time without time zone
+ att_timeinterval       | in_ahead_margin           | integer
+ att_timeinterval       | in_above_margin           | integer
+ att_timeinterval       | out_ahead_margin          | integer
+ att_timeinterval       | out_above_margin          | integer
+ att_timeinterval       | duration                  | integer
+ att_timeinterval       | in_required               | smallint
+ att_timeinterval       | out_required              | smallint
+ att_timeinterval       | allow_late                | integer
+ att_timeinterval       | allow_leave_early         | integer
+ att_timeinterval       | work_day                  | double precision
+ att_timeinterval       | early_in                  | smallint
+ att_timeinterval       | min_early_in              | integer
+ att_timeinterval       | late_out                  | smallint
+ att_timeinterval       | min_late_out              | integer
+ att_timeinterval       | overtime_lv               | smallint
+ att_timeinterval       | overtime_lv1              | smallint
+ att_timeinterval       | overtime_lv2              | smallint
+ att_timeinterval       | overtime_lv3              | smallint
+ att_timeinterval       | multiple_punch            | smallint
+ att_timeinterval       | available_interval_type   | smallint
+ att_timeinterval       | available_interval        | integer
+ att_timeinterval       | work_time_duration        | integer
+ att_timeinterval       | func_key                  | smallint
+ att_timeinterval       | work_type                 | smallint
+ att_timeinterval       | day_change                | time without time zone
+ att_timeinterval       | enable_early_in           | boolean
+ att_timeinterval       | enable_late_out           | boolean
+ att_timeinterval       | enable_overtime           | boolean
+ att_timeinterval       | ot_rule                   | uuid
+ att_timeinterval       | color_setting             | character varying
+ att_timeinterval       | enable_max_ot_limit       | boolean
+ att_timeinterval       | max_ot_limit              | integer
+ att_timeinterval       | count_early_in_interval   | boolean
+ att_timeinterval       | count_late_out_interval   | boolean
+ att_timeinterval       | ot_pay_code_id            | integer
+ att_timeinterval       | overtime_policy           | smallint
+ att_timeinterval       | company_id                | integer
+ iclock_terminal        | id                        | integer
+ iclock_terminal        | create_time               | timestamp with time zone
+ iclock_terminal        | create_user               | character varying
+ iclock_terminal        | change_time               | timestamp with time zone
+ iclock_terminal        | change_user               | character varying
+ iclock_terminal        | status                    | smallint
+ iclock_terminal        | sn                        | character varying
+ iclock_terminal        | alias                     | character varying
+ iclock_terminal        | ip_address                | inet
+ iclock_terminal        | real_ip                   | inet
+ iclock_terminal        | state                     | integer
+ iclock_terminal        | terminal_tz               | smallint
+ iclock_terminal        | heartbeat                 | integer
+ iclock_terminal        | transfer_mode             | smallint
+ iclock_terminal        | transfer_interval         | integer
+ iclock_terminal        | transfer_time             | character varying
+ iclock_terminal        | product_type              | smallint
+ iclock_terminal        | is_attendance             | smallint
+ iclock_terminal        | is_registration           | smallint
+ iclock_terminal        | purpose                   | smallint
+ iclock_terminal        | controller_type           | smallint
+ iclock_terminal        | authentication            | smallint
+ iclock_terminal        | style                     | character varying
+ iclock_terminal        | upload_flag               | character varying
+ iclock_terminal        | fw_ver                    | character varying
+ iclock_terminal        | push_protocol             | character varying
+ iclock_terminal        | push_ver                  | character varying
+ iclock_terminal        | language                  | integer
+ iclock_terminal        | is_tft                    | boolean
+ iclock_terminal        | terminal_name             | character varying
+ iclock_terminal        | platform                  | character varying
+ iclock_terminal        | oem_vendor                | character varying
+ iclock_terminal        | log_stamp                 | character varying
+ iclock_terminal        | op_log_stamp              | character varying
+ iclock_terminal        | capture_stamp             | character varying
+ iclock_terminal        | user_count                | integer
+ iclock_terminal        | transaction_count         | integer
+ iclock_terminal        | fp_count                  | integer
+ iclock_terminal        | fp_alg_ver                | character varying
+ iclock_terminal        | face_count                | integer
+ iclock_terminal        | face_alg_ver              | character varying
+ iclock_terminal        | fv_count                  | integer
+ iclock_terminal        | fv_alg_ver                | character varying
+ iclock_terminal        | palm_count                | integer
+ iclock_terminal        | palm_alg_ver              | character varying
+ iclock_terminal        | lock_func                 | smallint
+ iclock_terminal        | last_activity             | timestamp with time zone
+ iclock_terminal        | upload_time               | timestamp with time zone
+ iclock_terminal        | push_time                 | timestamp with time zone
+ iclock_terminal        | is_access                 | smallint
+ iclock_terminal        | area_id                   | integer
+ iclock_transaction     | id                        | integer
+ iclock_transaction     | emp_code                  | character varying
+ iclock_transaction     | punch_time                | timestamp with time zone
+ iclock_transaction     | punch_state               | character varying
+ iclock_transaction     | verify_type               | integer
+ iclock_transaction     | work_code                 | character varying
+ iclock_transaction     | terminal_sn               | character varying
+ iclock_transaction     | terminal_alias            | character varying
+ iclock_transaction     | area_alias                | character varying
+ iclock_transaction     | longitude                 | double precision
+ iclock_transaction     | latitude                  | double precision
+ iclock_transaction     | gps_location              | text
+ iclock_transaction     | mobile                    | character varying
+ iclock_transaction     | source                    | smallint
+ iclock_transaction     | purpose                   | smallint
+ iclock_transaction     | crc                       | character varying
+ iclock_transaction     | is_attendance             | smallint
+ iclock_transaction     | reserved                  | character varying
+ iclock_transaction     | upload_time               | timestamp with time zone
+ iclock_transaction     | sync_status               | smallint
+ iclock_transaction     | sync_time                 | timestamp with time zone
+ iclock_transaction     | is_mask                   | smallint
+ iclock_transaction     | temperature               | numeric
+ iclock_transaction     | emp_id                    | integer
+ iclock_transaction     | terminal_id               | integer
+ iclock_transaction     | company_code              | character varying
+ personnel_department   | id                        | integer
+ personnel_department   | dept_code                 | character varying
+ personnel_department   | dept_name                 | character varying
+ personnel_department   | is_default                | boolean
+ personnel_department   | parent_dept_id            | integer
+ personnel_department   | dept_manager_id           | integer
+ personnel_department   | company_id                | integer
+ personnel_employee     | id                        | integer
+ personnel_employee     | create_time               | timestamp with time zone
+ personnel_employee     | create_user               | character varying
+ personnel_employee     | change_time               | timestamp with time zone
+ personnel_employee     | change_user               | character varying
+ personnel_employee     | status                    | smallint
+ personnel_employee     | emp_code                  | character varying
+ personnel_employee     | first_name                | character varying
+ personnel_employee     | last_name                 | character varying
+ personnel_employee     | nickname                  | character varying
+ personnel_employee     | passport                  | character varying
+ personnel_employee     | driver_license_automobile | character varying
+ personnel_employee     | driver_license_motorcycle | character varying
+ personnel_employee     | photo                     | character varying
+ personnel_employee     | self_password             | character varying
+ personnel_employee     | device_password           | character varying
+ personnel_employee     | dev_privilege             | integer
+ personnel_employee     | card_no                   | character varying
+ personnel_employee     | acc_group                 | character varying
+ personnel_employee     | acc_timezone              | character varying
+ personnel_employee     | gender                    | character varying
+ personnel_employee     | birthday                  | date
+ personnel_employee     | address                   | character varying
+ personnel_employee     | postcode                  | character varying
+ personnel_employee     | office_tel                | character varying
+ personnel_employee     | contact_tel               | character varying
+ personnel_employee     | mobile                    | character varying
+ personnel_employee     | national                  | character varying
+ personnel_employee     | religion                  | character varying
+ personnel_employee     | title                     | character varying
+ personnel_employee     | enroll_sn                 | character varying
+ personnel_employee     | ssn                       | character varying
+ personnel_employee     | update_time               | timestamp with time zone
+ personnel_employee     | hire_date                 | date
+ personnel_employee     | verify_mode               | integer
+ personnel_employee     | city                      | character varying
+ personnel_employee     | emp_type                  | smallint
+ personnel_employee     | enable_payroll            | boolean
+ personnel_employee     | app_status                | smallint
+ personnel_employee     | app_role                  | smallint
+ personnel_employee     | email                     | character varying
+ personnel_employee     | last_login                | timestamp with time zone
+ personnel_employee     | is_active                 | boolean
+ personnel_employee     | session_key               | character varying
+ personnel_employee     | login_ip                  | character varying
+ personnel_employee     | department_id             | integer
+ personnel_employee     | position_id               | integer
+ personnel_employee     | leave_group               | integer
+ personnel_employee     | emp_code_digit            | bigint
+ personnel_employee     | superior_id               | integer
+ personnel_employee     | company_id                | integer
+ personnel_employee     | password_reset            | timestamp with time zone
+ personnel_resign       | id                        | integer
+ personnel_resign       | resign_date               | date
+ personnel_resign       | resign_type               | integer
+ personnel_resign       | disableatt                | boolean
+ personnel_resign       | reason                    | character varying
+ personnel_resign       | employee_id               | integer
+(304 lignes)
+
