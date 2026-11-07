@@ -1,9 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "zkreport"
 version = "0.1.0"
 description = "Read-only attendance reporting over a ZKBio Time 9 database"
 requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.7",
+    "psycopg[binary]>=3.2",
+    "tzdata>=2024.1",
+    "keyring>=25.0",
+    "openpyxl>=3.1",
+]
+
+[project.gui-scripts]
+zkreport = "zkreport.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]

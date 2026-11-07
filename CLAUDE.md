@@ -122,3 +122,29 @@ plus lateness, early departure, absences and worked hours.
 ## Stack
 PyQt6, `psycopg[binary]` (v3), `tzdata`, `keyring`, `openpyxl`, `pytest`.
 Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
+## Decisions (session 2, Stage 1 build)
+- The agency runs 24/7 and cannot provide official hours: every shift, schedule, tolerance
+  and window stays editable in **Paramètres**. Seeds are the observed patterns above.
+- **Days off are per department**: a schedule period lists working weekdays; uncovered
+  days are `repos`. Scheduled day without punches = `absent` (no rota for Production).
+- **Late minutes** default to `arrival − (start + tolerance)` (setting `late_mode`,
+  alternative `from_start`).
+- **Leave**: engine supports it (`compute(..., leaves=)`), but there is **no leave UI/table**
+  in Stage 1 (client asked to keep the app simple). Holidays have full CRUD.
+- **Holidays seeded**: fixed Tunisian dates as recurring + 2026 lunar dates as one-off
+  "(date à confirmer)". Mouled 2026-08-25 matches Rahma's unexplained absence.
+- **Pairing** (`engine/pairing.py`): punches → duplicate clusters → shift instances.
+  Complete pair wins; else nearest shift boundary. In contiguous rotations (06/14/22) a
+  lone punch is always equidistant, so ties use the employee's nearest complete shift
+  (neighbour context), then fall back to "departure". Lone punches are highlighted.
+- Punches outside every window are reported as `unscheduled` ("Hors planning").
+- Dev container cannot reach 192.168.10.6: tests use `tests/fixtures/rahma_punches.csv`
+  (built by `tools/build_rahma_fixture.py`) and `tests/fakes.py`.
+
+## Code map
+- `src/zkreport/engine/`: pure Python (guarded by `tests/test_engine_purity.py`).
+- `src/zkreport/store/`: SQLite settings (`settings_store.py`, seeds in `seed.py`), keyring.
+- `src/zkreport/db/`: psycopg read-only connection + SELECT-only repository.
+- `src/zkreport/service.py`: load one day (DB → engine), no Qt.
+- `src/zkreport/ui/`: PyQt6 (main window, dashboard, daily view, settings, QThread jobs).
+- Run: `python -m zkreport`. Tests: `pytest` (UI tests run with `QT_QPA_PLATFORM=offscreen`).

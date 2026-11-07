@@ -77,3 +77,11 @@ def test_db_params(store):
     p = store.db_params()
     assert (p.host, p.port, p.dbname, p.user, p.timezone) == (
         "192.168.10.6", 7497, "biotime", "postgres", "Africa/Tunis")
+
+
+def test_weekdays_label():
+    from zkreport.ui.labels_fr import weekdays_label
+    assert weekdays_label(range(5)) == "Lun–Ven"
+    assert weekdays_label([0, 2, 5]) == "Lun, Mer, Sam"
+    assert weekdays_label([5, 6]) == "Sam, Dim"
+    assert weekdays_label(range(7)) == "Tous les jours"
