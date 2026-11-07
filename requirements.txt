@@ -1,0 +1,6 @@
+PyQt6>=6.7
+psycopg[binary]>=3.2
+tzdata>=2024.1
+keyring>=25.0
+openpyxl>=3.1
+pytest>=8.0
