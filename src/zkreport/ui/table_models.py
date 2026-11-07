@@ -83,8 +83,6 @@ class ResultsTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.ForegroundRole and r.status in (
                 Status.REST, Status.HOLIDAY, Status.LEAVE):
             return QBrush(QColor(theme.TEXT_MUTED))
-        if role == Qt.ItemDataRole.ToolTipRole and r.punches:
-            return "Pointages : " + ", ".join(t.strftime("%d/%m %H:%M") for t in r.punches)
         if role == Qt.ItemDataRole.TextAlignmentRole and key in CENTERED:
             return Qt.AlignmentFlag.AlignCenter
         return None

@@ -1,7 +1,7 @@
 """Seed defaults. Observed patterns only: the client must confirm them in the config page."""
 from datetime import date, time
 
-from zkreport.engine.models import Holiday, LateMode, SchedulePeriod, ShiftDef
+from zkreport.engine.models import Holiday, SchedulePeriod, ShiftDef
 
 DEFAULT_SETTINGS: dict[str, str] = {
     # Connection (dev access through the VM port forward; password lives in keyring)
@@ -16,12 +16,8 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "excluded_emp_codes": "1",
     # Rules
     "duplicate_window_min": "5",
-    "late_tolerance_min": "10",
-    "early_leave_tolerance_min": "10",
-    "late_mode": LateMode.AFTER_TOLERANCE.value,
     "window_before_start_min": "240",
     "window_after_end_min": "360",
-    "overtime_threshold_min": "30",
 }
 
 ALL_DAYS = frozenset(range(7))

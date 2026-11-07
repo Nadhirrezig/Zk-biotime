@@ -1,4 +1,6 @@
-"""Engine data types. Pure Python: every rule value comes from the caller's config."""
+"""Engine data types. Pure Python: every rule value comes from the caller's config.
+
+No lateness, early departure, hours or overtime: the client only reports punch counts."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,11 +21,6 @@ class Missing(str, Enum):
     NONE = "none"
     ARRIVAL = "arrival"
     DEPARTURE = "departure"
-
-
-class LateMode(str, Enum):
-    AFTER_TOLERANCE = "after_tolerance"  # minutes counted from start + tolerance
-    FROM_START = "from_start"            # minutes counted from start once past tolerance
 
 
 @dataclass(frozen=True)
@@ -107,12 +104,8 @@ class Leave:
 @dataclass(frozen=True)
 class Rules:
     duplicate_window_min: int
-    late_tolerance_min: int
-    early_leave_tolerance_min: int
-    late_mode: LateMode
     window_before_start_min: int
     window_after_end_min: int
-    overtime_threshold_min: int
 
 
 @dataclass(frozen=True)
@@ -140,20 +133,12 @@ class DayResult:
     arrival: datetime | None = None
     departure: datetime | None = None
     punches: tuple[datetime, ...] = ()
-    late_min: int = 0
-    early_leave_min: int = 0
-    worked_min: int = 0
-    overtime_min: int = 0
     holiday_name: str | None = None
     unscheduled: bool = False       # punches outside every scheduled window
 
     @property
     def punch_count(self) -> int:
         return len(self.punches)
-
-    @property
-    def is_late(self) -> bool:
-        return self.late_min > 0
 
     @property
     def is_present(self) -> bool:

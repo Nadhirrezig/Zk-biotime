@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
-from . import metrics
 from .models import DayResult, EngineConfig, Employee, Leave, Missing, Punch, Status
 from .pairing import Assignment, Cluster, build_instance, pair_punches
 from .scheduling import holiday_for, leave_for, resolve_period
@@ -66,7 +65,7 @@ def compute(
             holiday = holiday_for(config.holidays, day)
             holiday_name = holiday.name if holiday else None
             for a in sorted(by_day.get(day, []), key=lambda a: a.instance.start):
-                results.append(_from_assignment(emp, a, rules, holiday_name))
+                results.append(_from_assignment(emp, a, holiday_name))
             if day in orphans_by_day:
                 results.append(_unscheduled(emp, day, orphans_by_day[day], holiday_name))
             if day in by_day or day in orphans_by_day:
@@ -93,7 +92,7 @@ def compute(
     return results
 
 
-def _from_assignment(emp: Employee, a: Assignment, rules, holiday_name) -> DayResult:
+def _from_assignment(emp: Employee, a: Assignment, holiday_name) -> DayResult:
     inst = a.instance
     times = tuple(t for c in a.clusters for t in c.times)
     if a.arrival_missing:
@@ -110,10 +109,6 @@ def _from_assignment(emp: Employee, a: Assignment, rules, holiday_name) -> DayRe
         shift_code=inst.shift.code, shift_name=inst.shift.name,
         scheduled_start=inst.start, scheduled_end=inst.end,
         arrival=arrival, departure=departure, punches=times,
-        late_min=metrics.late_minutes(arrival, inst.start, rules),
-        early_leave_min=metrics.early_leave_minutes(departure, inst.end, rules),
-        worked_min=metrics.worked_minutes(arrival, departure),
-        overtime_min=metrics.overtime_minutes(departure, inst.end, rules),
         holiday_name=holiday_name,
     )
 
@@ -129,7 +124,6 @@ def _unscheduled(emp: Employee, day: date, clusters: list[Cluster], holiday_name
         status=Status.COMPLETE if complete else Status.SINGLE_PUNCH,
         missing=Missing.NONE if complete else Missing.DEPARTURE,
         arrival=arrival, departure=departure, punches=times,
-        worked_min=metrics.worked_minutes(arrival, departure),
         holiday_name=holiday_name, unscheduled=True,
     )
 
@@ -140,7 +134,6 @@ class Summary:
     present: int
     complete: int
     single_punch: int
-    late: int
     absent: int
     leave: int
     holiday: int
@@ -155,14 +148,11 @@ def summarize(results: Iterable[DayResult]) -> Summary:
         buckets[r.status.value].add(r.emp_code)
         if r.is_present:
             buckets["present"].add(r.emp_code)
-        if r.is_late:
-            buckets["late"].add(r.emp_code)
     return Summary(
         employees=len(buckets["all"]),
         present=len(buckets["present"]),
         complete=len(buckets[Status.COMPLETE.value]),
         single_punch=len(buckets[Status.SINGLE_PUNCH.value]),
-        late=len(buckets["late"]),
         absent=len(buckets[Status.ABSENT.value]),
         leave=len(buckets[Status.LEAVE.value]),
         holiday=len(buckets[Status.HOLIDAY.value]),

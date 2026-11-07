@@ -82,8 +82,8 @@ plus lateness, early departure, absences and worked hours.
    - `pointage unique`: one punch; mark as missing arrival or missing departure, by proximity
    - `absent`: scheduled day, no punch, no leave, no holiday
    - `congé`, `férié`, `repos`
-6. Metrics: late (with tolerance), early departure, worked hours, overtime (optional).
-   Every threshold is configurable.
+6. ~~Metrics (late, early departure, worked hours, overtime)~~: **removed in session 3 at the
+   client's request. Do not calculate lateness or hours.**
 
 **Test case (Rahma, `emp_code 302`, Administration), expected results:**
 - 1 Sep: departure 17:03 belongs to 1 Sep, not 2 Sep.
@@ -91,7 +91,8 @@ plus lateness, early departure, absences and worked hours.
 - 25 Jul and 15 Oct: `férié`.
 - 10–22 Aug: `absent` until leave is entered, then `congé`.
 - 16 Jul: duplicates collapse to one arrival and one departure.
-- Arrivals 17 Jul 11:03, 23 Jul 12:05, 3 Sep 09:45: late.
+- ~~Arrivals 17 Jul 11:03, 23 Jul 12:05, 3 Sep 09:45: late.~~ (lateness removed; 17 Jul is
+  only checked as a double punch 11:03 → 14:13.)
 
 ## Stages
 **Stage 1: Foundation**
@@ -127,8 +128,7 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
   and window stays editable in **Paramètres**. Seeds are the observed patterns above.
 - **Days off are per department**: a schedule period lists working weekdays; uncovered
   days are `repos`. Scheduled day without punches = `absent` (no rota for Production).
-- **Late minutes** default to `arrival − (start + tolerance)` (setting `late_mode`,
-  alternative `from_start`).
+- ~~Late minutes~~: superseded, see session 3.
 - **Leave**: engine supports it (`compute(..., leaves=)`), but there is **no leave UI/table**
   in Stage 1 (client asked to keep the app simple). Holidays have full CRUD.
 - **Holidays seeded**: fixed Tunisian dates as recurring + 2026 lunar dates as one-off
@@ -145,8 +145,11 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
 - The client group wants **basic reporting only**. Screens show: pointage double, pointage
   unique, absents, total pointés (= double + unique), per-employee period stats, Excel/PDF
   export and printing. No rate, lateness, early departure, hours or overtime on screen.
-- The engine still computes lateness/hours (tests unchanged); the UI just does not show them.
-  Lateness/overtime settings are hidden from Paramètres but kept in SQLite.
+- **No lateness / early departure / hours / overtime anywhere** (engine, settings, UI,
+  exports). `engine/metrics.py` and those settings were deleted; old settings keys are purged
+  from SQLite at startup. Statut shows no "arrivée/départ manquant" note and rows have no
+  punch-list tooltip. The engine still decides whether a lone punch is an arrival or a
+  departure (needed for the Arrivée/Départ columns and the right shift-day).
 - Two tabs: **Journée** (date, 4 cards, list with filters, double-click → employee) and
   **Employé** (employee + period, 4 day counts, day-by-day list).
 - Exports use what is on screen (filters + sort): `src/zkreport/export.py` (Excel, HTML),

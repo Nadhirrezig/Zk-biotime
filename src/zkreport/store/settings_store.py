@@ -9,7 +9,6 @@ from zkreport.db.connection import DbParams
 from zkreport.engine.models import (
     EngineConfig,
     Holiday,
-    LateMode,
     Rules,
     SchedulePeriod,
     ShiftDef,
@@ -46,8 +45,7 @@ CREATE TABLE IF NOT EXISTS holidays (
 
 INT_KEYS = {
     "db_port", "db_connect_timeout_sec", "refresh_interval_sec", "duplicate_window_min",
-    "late_tolerance_min", "early_leave_tolerance_min", "window_before_start_min",
-    "window_after_end_min", "overtime_threshold_min",
+    "window_before_start_min", "window_after_end_min",
 }
 
 
@@ -91,6 +89,10 @@ class SettingsStore:
                 "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
                 DEFAULT_SETTINGS.items(),
             )
+            # Drop settings that no longer exist (e.g. removed lateness/overtime rules).
+            known = ",".join("?" * len(DEFAULT_SETTINGS))
+            self._db.execute(f"DELETE FROM settings WHERE key NOT IN ({known})",
+                             tuple(DEFAULT_SETTINGS))
             seeded = self._db.execute("SELECT value FROM meta WHERE key = 'seeded'").fetchone()
             if seeded:
                 return
@@ -118,8 +120,6 @@ class SettingsStore:
                 raise KeyError(f"Unknown setting: {key}")
             if key in INT_KEYS:
                 int(value)  # validate
-            if key == "late_mode":
-                LateMode(value)
         with self._db:
             self._db.executemany(
                 "INSERT INTO settings(key, value) VALUES (?, ?) "
@@ -210,12 +210,8 @@ class SettingsStore:
     def rules(self) -> Rules:
         return Rules(
             duplicate_window_min=self.get_int("duplicate_window_min"),
-            late_tolerance_min=self.get_int("late_tolerance_min"),
-            early_leave_tolerance_min=self.get_int("early_leave_tolerance_min"),
-            late_mode=LateMode(self.get("late_mode")),
             window_before_start_min=self.get_int("window_before_start_min"),
             window_after_end_min=self.get_int("window_after_end_min"),
-            overtime_threshold_min=self.get_int("overtime_threshold_min"),
         )
 
     def excluded_emp_codes(self) -> frozenset[str]:

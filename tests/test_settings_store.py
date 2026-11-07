@@ -4,7 +4,7 @@ from datetime import date, time
 import pytest
 
 from zkreport.engine import compute
-from zkreport.engine.models import Employee, Holiday, LateMode, SchedulePeriod, ShiftDef, Status
+from zkreport.engine.models import Employee, Holiday, SchedulePeriod, ShiftDef, Status
 from zkreport.store.seed import DEFAULT_SETTINGS
 from zkreport.store.settings_store import SettingsStore
 
@@ -20,7 +20,7 @@ def test_seeded_defaults(store):
     assert store.all_settings() == DEFAULT_SETTINGS
     config = store.engine_config()
     assert config.timezone == "Africa/Tunis"
-    assert config.rules.late_mode is LateMode.AFTER_TOLERANCE
+    assert config.rules.duplicate_window_min == 5
     assert config.excluded_emp_codes == frozenset({"1"})
     assert {s.code for s in config.shifts} >= {"ADM", "PRD_N", "GARD"}
     assert {p.department for p in config.periods} == {"Administration", "Production", "Gardiennage"}
@@ -30,12 +30,12 @@ def test_seeded_defaults(store):
 def test_seed_runs_once_and_user_edits_survive_reopen(tmp_path):
     path = tmp_path / "settings.db"
     s = SettingsStore(path)
-    s.set_many({"late_tolerance_min": 15, "timezone": "Africa/Tunis"})
+    s.set_many({"duplicate_window_min": 8, "timezone": "Africa/Tunis"})
     s.save_schedule([ShiftDef("X", "Test", time(9, 0), time(18, 0))],
                     [SchedulePeriod("Dept", ("X",), frozenset({0}))], [])
     s.close()
     s = SettingsStore(path)
-    assert s.get_int("late_tolerance_min") == 15
+    assert s.get_int("duplicate_window_min") == 8
     assert [x.code for x in s.shifts()] == ["X"]
     assert s.holidays() == []
     s.close()
@@ -49,8 +49,8 @@ def test_period_round_trip(store):
 
 
 @pytest.mark.parametrize("bad", [
-    {"late_tolerance_min": "abc"},
-    {"late_mode": "whatever"},
+    {"duplicate_window_min": "abc"},
+    {"late_tolerance_min": "10"},       # removed setting
     {"unknown_key": "1"},
 ])
 def test_invalid_settings_rejected(store, bad):
@@ -85,3 +85,14 @@ def test_weekdays_label():
     assert weekdays_label([0, 2, 5]) == "Lun, Mer, Sam"
     assert weekdays_label([5, 6]) == "Sam, Dim"
     assert weekdays_label(range(7)) == "Tous les jours"
+
+
+def test_removed_settings_are_purged(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    SettingsStore(path).close()
+    with sqlite3.connect(path) as db:  # simulate a database from an older version
+        db.execute("INSERT INTO settings(key, value) VALUES ('late_tolerance_min', '10')")
+    s = SettingsStore(path)
+    assert "late_tolerance_min" not in s.all_settings()
+    s.close()

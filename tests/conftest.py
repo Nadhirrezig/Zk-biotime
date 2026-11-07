@@ -9,7 +9,6 @@ from zkreport.engine.models import (
     EngineConfig,
     Employee,
     Holiday,
-    LateMode,
     Punch,
     Rules,
     SchedulePeriod,
@@ -25,12 +24,8 @@ MON_FRI = frozenset(range(5))
 def make_rules(**overrides) -> Rules:
     values = dict(
         duplicate_window_min=5,
-        late_tolerance_min=10,
-        early_leave_tolerance_min=10,
-        late_mode=LateMode.AFTER_TOLERANCE,
         window_before_start_min=240,
         window_after_end_min=360,
-        overtime_threshold_min=30,
     )
     values.update(overrides)
     return Rules(**values)

@@ -6,7 +6,7 @@ import pytest
 
 from conftest import TUNISIA_HOLIDAYS, admin_config, make_rules
 from zkreport.engine import compute
-from zkreport.engine.models import LateMode, Leave, Missing, Punch, Status
+from zkreport.engine.models import Leave, Missing, Punch, Status
 
 TUNIS = ZoneInfo("Africa/Tunis")
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -57,7 +57,6 @@ def test_jul_16_duplicates_collapse_to_first_and_last(rahma, rahma_punches, wind
     assert row.status is Status.COMPLETE
     assert (hm(row.arrival), hm(row.departure)) == ("10:20", "14:45")
     assert row.punch_count == 9
-    assert row.worked_min == 4 * 60 + 25
 
 
 def test_sep_24_single_punch_is_missing_arrival(rahma, rahma_punches):
@@ -104,32 +103,6 @@ def test_aug_10_22_leave_once_entered(rahma, rahma_punches):
     assert one_day(results, date(2026, 8, 16)).status is Status.REST
 
 
-@pytest.mark.parametrize(
-    "start, mode, expected",
-    [
-        ("08:00", LateMode.AFTER_TOLERANCE, 173),  # 11:03 - 08:10
-        ("08:30", LateMode.AFTER_TOLERANCE, 143),  # 11:03 - 08:40
-        ("08:00", LateMode.FROM_START, 183),       # 11:03 - 08:00
-        ("08:30", LateMode.FROM_START, 153),       # 11:03 - 08:30
-    ],
-)
-def test_jul_17_late_arrival(rahma, rahma_punches, start, mode, expected):
-    config = admin_config(start=start, rules=make_rules(late_mode=mode, late_tolerance_min=10))
-    day = date(2026, 7, 17)
-    row = one_day(compute([rahma], rahma_punches, config, day, day), day)
-    assert hm(row.arrival) == "11:03"
-    assert row.is_late
-    assert row.late_min == expected
-
-
-def test_arrival_within_tolerance_is_not_late(rahma, rahma_punches):
-    # 2026-07-29 arrival 08:01, tolerance 10 -> on time.
-    day = date(2026, 7, 29)
-    row = one_day(compute([rahma], rahma_punches, admin_config(), day, day), day)
-    assert hm(row.arrival) == "08:01"
-    assert row.late_min == 0 and not row.is_late
-
-
 def test_sunday_is_rest_for_administration(rahma, rahma_punches):
     day = date(2026, 9, 6)  # Sunday
     row = one_day(compute([rahma], rahma_punches, admin_config(), day, day), day)
@@ -141,7 +114,6 @@ def test_saturday_uses_saturday_shift(rahma, rahma_punches):
     row = one_day(compute([rahma], rahma_punches, admin_config(), day, day), day)
     assert row.shift_code == "ADM_SAT"
     assert (hm(row.arrival), hm(row.departure)) == ("08:22", "13:04")
-    assert row.early_leave_min == 0
 
 
 def test_whole_dataset_one_row_per_day(rahma, rahma_punches):
@@ -151,3 +123,11 @@ def test_whole_dataset_one_row_per_day(rahma, rahma_punches):
     assigned = sum(r.punch_count for r in results)
     assert assigned == len(rahma_punches)
     assert not any(r.unscheduled for r in results)
+
+
+def test_jul_17_late_arrival_still_paired(rahma, rahma_punches):
+    # Lateness is no longer computed; the day must still be a double punch.
+    day = date(2026, 7, 17)
+    row = one_day(compute([rahma], rahma_punches, admin_config(), day, day), day)
+    assert row.status is Status.COMPLETE
+    assert (hm(row.arrival), hm(row.departure)) == ("11:03", "14:13")

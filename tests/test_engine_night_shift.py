@@ -40,8 +40,6 @@ def test_night_shift_attached_to_arrival_date():
     assert oct27.shift_code == "PRD_N"
     assert (hm(oct27.arrival), hm(oct27.departure)) == ("21:48", "05:55")
     assert oct27.departure.astimezone(TUNIS).date() == date(2026, 10, 28)
-    assert oct27.late_min == 0 and oct27.early_leave_min == 0
-    assert oct27.worked_min == 8 * 60 + 7
     (oct28,) = rows_for(results, date(2026, 10, 28))
     assert oct28.status is Status.ABSENT
 
@@ -134,7 +132,6 @@ def test_summary_counts():
     assert counts.employees == 2
     assert counts.present == 1
     assert counts.complete == 1
-    assert counts.late == 1
     assert counts.absent == 1
     assert counts.single_punch == 0
 
@@ -158,4 +155,4 @@ def test_unscheduled_punches_are_reported():
     (row,) = compute([nobody], punches, production_config(), date(2026, 10, 20), date(2026, 10, 20))
     assert row.unscheduled
     assert row.status is Status.COMPLETE
-    assert row.worked_min == 480
+    assert row.punch_count == 2

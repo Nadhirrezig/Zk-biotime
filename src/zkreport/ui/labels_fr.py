@@ -1,5 +1,5 @@
 """French UI labels."""
-from zkreport.engine.models import DayResult, Missing, Status
+from zkreport.engine.models import DayResult, Status
 
 STATUS = {
     Status.COMPLETE: "Pointage double",
@@ -8,12 +8,6 @@ STATUS = {
     Status.LEAVE: "Congé",
     Status.HOLIDAY: "Férié",
     Status.REST: "Repos",
-}
-
-MISSING = {
-    Missing.NONE: "",
-    Missing.ARRIVAL: "arrivée manquante",
-    Missing.DEPARTURE: "départ manquant",
 }
 
 WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
@@ -37,8 +31,6 @@ FILTER_LABELS = dict(FILTERS)
 def status_text(r: DayResult) -> str:
     text = STATUS[r.status]
     details = []
-    if r.missing is not Missing.NONE:
-        details.append(MISSING[r.missing])
     if r.unscheduled:
         details.append("hors planning")
     if r.holiday_name and r.status is not Status.HOLIDAY:

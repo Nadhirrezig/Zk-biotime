@@ -166,7 +166,7 @@ def test_settings_dialog_save_and_connection_error(app, store, monkeypatch):
     dialog = SettingsDialog(store, ["Production"])
     assert dialog.tabs.count() == 5
     values, shifts, holidays = dialog.collect()
-    assert "late_tolerance_min" not in values           # hidden rule, kept in the store
+    assert "late_tolerance_min" not in values
     assert len(shifts) == len(store.shifts())
     assert len(holidays) == len(store.holidays())
 
@@ -179,5 +179,4 @@ def test_settings_dialog_save_and_connection_error(app, store, monkeypatch):
     dialog.dup_window.setValue(7)
     dialog._save()
     assert store.get_int("duplicate_window_min") == 7
-    assert store.get_int("late_tolerance_min") == 10
     assert store.get("db_host") == "127.0.0.1"
