@@ -1,4 +1,4 @@
-"""Main window: dark sidebar + page stack (Journée, Employé), background loading, auto refresh."""
+"""Main window: 'Journée' and 'Employé' tabs, background loading, auto refresh."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -6,8 +6,8 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QKeySequence, QShortcut
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QStackedWidget, QVBoxLayout, QWidget
+from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtWidgets import QLabel, QMainWindow, QTabWidget, QToolBar, QVBoxLayout, QWidget
 
 from zkreport.service import (
     DayReport,
@@ -25,7 +25,6 @@ from . import theme
 from .daily_page import DailyPage
 from .employee_page import EmployeePage
 from .settings_dialog import SettingsDialog
-from .sidebar import Sidebar
 from .workers import JobRunner
 
 # Returns the repository factory to use for the next load (DB by default; fakes in tests).
@@ -47,50 +46,37 @@ class MainWindow(QMainWindow):
         self._runner.done.connect(self._on_done)
         self._runner.error.connect(self._on_failed)
 
+        self._build_toolbar()
         self.error_banner = QLabel()
         self.error_banner.setWordWrap(True)
         self.error_banner.setStyleSheet(
-            f"background:{theme.ABSENT.tint}; color:{theme.ABSENT.text}; padding:10px 14px;"
-            f" border:1px solid #FECDCA; border-radius:10px; font-weight:600;")
+            f"background:{theme.LATE.tint}; color:{theme.LATE.text}; padding:6px;"
+            " border-radius:4px;")
         self.error_banner.hide()
 
         self.daily = DailyPage()
         self.employee = EmployeePage()
-        self.stack = QStackedWidget()
-        self.stack.addWidget(self.daily)
-        self.stack.addWidget(self.employee)
-        self.sidebar = Sidebar([("Journée", "calendar"), ("Employé", "user")])
-        self.sidebar.page_requested.connect(self.stack.setCurrentIndex)
-        self.sidebar.settings_requested.connect(self.open_settings)
-        self.sidebar.refresh_requested.connect(self.refresh)
-        self.status = self.sidebar.status
-        QShortcut(QKeySequence("F5"), self, activated=self.refresh)
-
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.daily, "Journée")
+        self.tabs.addTab(self.employee, "Employé")
         self.daily.day_changed.connect(self.refresh_day)
         self.daily.employee_requested.connect(self.show_employee)
         self.employee.selection_changed.connect(self.refresh_employee)
-        for button in (self.daily.export_button, self.employee.export_button):
-            button.message.connect(self._flash)
-        self._message_timer = QTimer(self)
-        self._message_timer.setSingleShot(True)
-        self._message_timer.timeout.connect(self.sidebar.message.hide)
-
-        content = QWidget()
-        content.setObjectName("page")
-        content.setStyleSheet(f"#page {{ background: {theme.PAGE_BG}; }}")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(28, 22, 28, 22)
-        content_layout.setSpacing(12)
-        content_layout.addWidget(self.error_banner)
-        content_layout.addWidget(self.stack, 1)
+        for bar in (self.daily.export_bar, self.employee.export_bar):
+            bar.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
 
         central = QWidget()
-        layout = QHBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.sidebar)
-        layout.addWidget(content, 1)
+        central.setObjectName("page")
+        central.setStyleSheet(f"#page {{ background: {theme.PAGE_BG}; }}")
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(16, 12, 16, 8)
+        layout.setSpacing(10)
+        layout.addWidget(self.error_banner)
+        layout.addWidget(self.tabs, 1)
         self.setCentralWidget(central)
+
+        self.status = QLabel()
+        self.statusBar().addPermanentWidget(self.status, 1)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
@@ -101,10 +87,18 @@ class MainWindow(QMainWindow):
         params = self.store.db_params()
         return db_repo_factory(params, secrets.get_password(params.keyring_account))
 
-    def _flash(self, text: str) -> None:
-        self.sidebar.message.setText(text)
-        self.sidebar.message.show()
-        self._message_timer.start(8000)
+    def _build_toolbar(self) -> None:
+        bar = QToolBar("Principal")
+        bar.setMovable(False)
+        self.addToolBar(bar)
+        refresh = QAction("Actualiser", self)
+        refresh.setShortcut(QKeySequence("F5"))
+        refresh.triggered.connect(self.refresh)
+        settings = QAction("Paramètres…", self)
+        settings.triggered.connect(self.open_settings)
+        bar.addAction(refresh)
+        bar.addSeparator()
+        bar.addAction(settings)
 
     def _apply_settings(self) -> None:
         self.config = self.store.engine_config()
@@ -199,22 +193,20 @@ class MainWindow(QMainWindow):
         self.employee.set_employees(sorted(seen.items(), key=lambda kv: kv[1].casefold()))
 
     def show_employee(self, emp_code: str) -> None:
-        self.stack.setCurrentWidget(self.employee)
-        self.sidebar.set_current(1)
+        self.tabs.setCurrentWidget(self.employee)
         self.employee.select_employee(emp_code)
 
     def _status_text(self, report: DayReport) -> str:
         interval = self.store.get_int("refresh_interval_sec")
         every = f"{interval // 60} min" if interval % 60 == 0 else f"{interval} s"
         parts = [f"Mis à jour à {report.loaded_at:%H:%M:%S}",
-                 f"Actualisation : toutes les {every}"]
+                 f"Actualisation automatique : toutes les {every}"]
         if report.last_punch:
-            parts.append(f"Dernier pointage : {report.last_punch:%d/%m/%Y %H:%M}")
+            parts.append(f"Dernier pointage reçu : {report.last_punch:%d/%m/%Y %H:%M}")
             now = datetime.now(ZoneInfo(self.config.timezone))
             if now - report.last_punch > timedelta(hours=24):
-                parts.append("<span style='color:#FEC84B'>⚠ Aucun pointage reçu depuis "
-                             "plus de 24 h (pointeuse déconnectée ?)</span>")
-        return "<br>".join(parts)
+                parts.append("⚠ aucun pointage reçu depuis plus de 24 h (pointeuse déconnectée ?)")
+        return "   ·   ".join(parts)
 
     def closeEvent(self, event) -> None:
         self.timer.stop()

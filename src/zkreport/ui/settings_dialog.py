@@ -38,7 +38,6 @@ from zkreport.store import secrets
 from zkreport.store.settings_store import SettingsStore
 
 from . import labels_fr as fr
-from .theme import set_role
 from .workers import JobRunner
 
 HM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
@@ -217,7 +216,6 @@ class SettingsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save
                                    | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("Enregistrer")
-        set_role(buttons.button(QDialogButtonBox.StandardButton.Save), "primary")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Annuler")
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)

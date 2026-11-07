@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtGui import QBrush, QColor
 
 from zkreport.engine.models import DayResult, Status
 
@@ -25,8 +25,6 @@ NUMERIC = {COUNT}
 CENTERED = {ARRIVAL, DEPARTURE, COUNT, DATE, WEEKDAY}
 
 ROW_FILLS = {Status.SINGLE_PUNCH: theme.ROW_SINGLE, Status.ABSENT: theme.ROW_ABSENT}
-RESULT_ROLE = Qt.ItemDataRole.UserRole + 1   # the DayResult itself (status pill delegate)
-EMPTY = "—"
 
 
 def _hm(dt: datetime | None, day) -> str:
@@ -67,11 +65,7 @@ class ResultsTableModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return HEADERS[self.columns[section]].upper()
-        if role == Qt.ItemDataRole.TextAlignmentRole and orientation == Qt.Orientation.Horizontal:
-            key = self.columns[section]
-            return Qt.AlignmentFlag.AlignCenter if key in CENTERED else \
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            return HEADERS[self.columns[section]]
         return None
 
     def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
@@ -80,25 +74,17 @@ class ResultsTableModel(QAbstractTableModel):
         r = self._rows[index.row()]
         key = self.columns[index.column()]
         if role == Qt.ItemDataRole.DisplayRole:
-            text = display(r, key)
-            return EMPTY if not text and key in (ARRIVAL, DEPARTURE, COUNT) else text
+            return display(r, key)
         if role == Qt.ItemDataRole.UserRole:  # sort key
             return sort_key(r, key)
-        if role == RESULT_ROLE:
-            return r
-        if role == Qt.ItemDataRole.ForegroundRole:
-            if key in (CODE, WEEKDAY) or not display(r, key) or r.status in (
-                    Status.REST, Status.HOLIDAY, Status.LEAVE):
-                return QBrush(QColor(theme.TEXT_MUTED if display(r, key) else "#98A2B3"))
-            return None
-        if role == Qt.ItemDataRole.FontRole and key == NAME:
-            font = QFont()
-            font.setWeight(QFont.Weight.DemiBold)
-            return font
-        if role == Qt.ItemDataRole.TextAlignmentRole:
-            if key in CENTERED:
-                return Qt.AlignmentFlag.AlignCenter
-            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        if role == Qt.ItemDataRole.BackgroundRole:
+            fill = row_fill(r)
+            return QBrush(QColor(fill)) if fill else None
+        if role == Qt.ItemDataRole.ForegroundRole and r.status in (
+                Status.REST, Status.HOLIDAY, Status.LEAVE):
+            return QBrush(QColor(theme.TEXT_MUTED))
+        if role == Qt.ItemDataRole.TextAlignmentRole and key in CENTERED:
+            return Qt.AlignmentFlag.AlignCenter
         return None
 
 
