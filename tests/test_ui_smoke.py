@@ -120,3 +120,36 @@ def test_settings_dialog_save_and_connection_error(app, store, monkeypatch):
     dialog._save()
     assert store.get_int("late_tolerance_min") == 15
     assert store.get("db_host") == "127.0.0.1"
+
+
+def test_dashboard_cards_filter_and_selection(app, store):
+    window = MainWindow(store, loader=fake_loader)
+    show_day(app, window, date(2026, 9, 24))
+    dash = window.dashboard
+    once_card = dash.cards[fr.FILTER_ONCE]
+    late_card = dash.cards[fr.FILTER_LATE]
+
+    # Anomaly cards: coloured count when > 0, "Aucun" when 0.
+    assert once_card.value.text() == "2" and once_card.caption.text() == "50 % des présents"
+    assert late_card.value.text() == "0" and late_card.caption.text() == "Aucun"
+    assert dash.hero.present.text() == "4"
+    assert dash.hero.expected.text() == "/ 5 attendus"
+    assert dash.hero.rate.text() == "80 %"
+    assert "septembre" in dash.hero.day_label.text()
+
+    once_card.activated.emit(fr.FILTER_ONCE)          # click
+    assert window.daily.filter_combo.currentData() == fr.FILTER_ONCE
+    assert once_card.is_selected() and not dash.hero.is_selected()
+    once_card.activated.emit(fr.FILTER_ONCE)          # click again clears
+    assert window.daily.filter_combo.currentData() == fr.FILTER_ALL
+    assert not once_card.is_selected()
+
+    window.daily.set_filter(fr.FILTER_TWICE)          # combo -> chip selected
+    assert dash.hero.chips[fr.FILTER_TWICE].is_selected()
+    window.daily.set_filter(fr.FILTER_PRESENT)
+    assert dash.hero.is_selected()
+
+    show_day(app, window, date(2026, 7, 25))          # holiday: nobody expected
+    assert dash.hero.rate.text() == "—"
+    assert "Fête de la République" in dash.hero.day_label.text()
+    window.close()

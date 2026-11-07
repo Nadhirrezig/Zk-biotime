@@ -147,4 +147,6 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
 - `src/zkreport/db/`: psycopg read-only connection + SELECT-only repository.
 - `src/zkreport/service.py`: load one day (DB → engine), no Qt.
 - `src/zkreport/ui/`: PyQt6 (main window, dashboard, daily view, settings, QThread jobs).
+  Colours live in `ui/theme.py` (light theme only, Fusion style). Dashboard = presence hero
+  card + anomaly cards; colour only when a count is > 0; cards are filters synced with the combo.
 - Run: `python -m zkreport`. Tests: `pytest` (UI tests run with `QT_QPA_PLATFORM=offscreen`).

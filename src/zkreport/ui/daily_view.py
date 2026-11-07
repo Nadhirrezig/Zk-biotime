@@ -1,7 +1,7 @@
 """Daily attendance table with filters."""
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -15,10 +15,13 @@ from PyQt6.QtWidgets import (
 )
 
 from . import labels_fr as fr
+from . import theme
 from .table_models import C_NAME, DailyFilterProxy, DailyTableModel
 
 
 class DailyView(QWidget):
+    filter_changed = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model = DailyTableModel(self)
@@ -28,8 +31,7 @@ class DailyView(QWidget):
         self.filter_combo = QComboBox()
         for key, label in fr.FILTERS:
             self.filter_combo.addItem(label, key)
-        self.filter_combo.currentIndexChanged.connect(
-            lambda _: self.proxy.set_mode(self.filter_combo.currentData()))
+        self.filter_combo.currentIndexChanged.connect(self._on_filter_combo)
 
         self.dept_combo = QComboBox()
         self.dept_combo.addItem("Tous les départements", "")
@@ -68,9 +70,9 @@ class DailyView(QWidget):
         header.setStretchLastSection(True)
 
         legend = QLabel(
-            "<span style='background:#FFE8A3'>&nbsp;Un seul pointage&nbsp;</span>&nbsp;&nbsp;"
-            "<span style='background:#F8D7DA'>&nbsp;Absent&nbsp;</span>&nbsp;&nbsp;"
-            "<span style='color:#B42318'>Retard</span>&nbsp;&nbsp;"
+            f"<span style='background:{theme.ROW_SINGLE}'>&nbsp;Un seul pointage&nbsp;</span>"
+            f"&nbsp;&nbsp;<span style='background:{theme.ROW_ABSENT}'>&nbsp;Absent&nbsp;</span>"
+            f"&nbsp;&nbsp;<span style='color:{theme.LATE.text}'>Retard</span>&nbsp;&nbsp;"
             "Survolez une ligne pour voir tous les pointages."
         )
 
@@ -100,6 +102,11 @@ class DailyView(QWidget):
         index = self.filter_combo.findData(mode)
         if index >= 0:
             self.filter_combo.setCurrentIndex(index)
+
+    def _on_filter_combo(self, _index: int) -> None:
+        mode = self.filter_combo.currentData()
+        self.proxy.set_mode(mode)
+        self.filter_changed.emit(mode)
 
     def visible_rows(self):
         return [self.model.row_at(self.proxy.mapToSource(self.proxy.index(i, 0)).row())

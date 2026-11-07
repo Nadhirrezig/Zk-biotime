@@ -23,6 +23,7 @@ from zkreport.store.settings_store import SettingsStore
 
 from .daily_view import DailyView
 from .dashboard import Dashboard
+from . import theme
 from .settings_dialog import SettingsDialog
 from .workers import JobRunner
 
@@ -61,9 +62,14 @@ class MainWindow(QMainWindow):
         self.dashboard = Dashboard()
         self.daily = DailyView()
         self.dashboard.filter_requested.connect(self.daily.set_filter)
+        self.daily.filter_changed.connect(self.dashboard.set_active_filter)
 
         central = QWidget()
+        central.setObjectName("page")
+        central.setStyleSheet(f"#page {{ background: {theme.PAGE_BG}; }}")
         layout = QVBoxLayout(central)
+        layout.setContentsMargins(16, 12, 16, 8)
+        layout.setSpacing(12)
         layout.addWidget(self.error_banner)
         layout.addWidget(self.dashboard)
         layout.addWidget(self.daily, 1)
@@ -144,7 +150,8 @@ class MainWindow(QMainWindow):
             return
         self.report = report
         self.error_banner.hide()
-        self.dashboard.set_summary(report.summary)
+        holiday = next((r.holiday_name for r in report.results if r.holiday_name), None)
+        self.dashboard.set_summary(report.summary, report.day, holiday)
         self.daily.set_results(report.results)
         self.status.setText(self._status_text(report))
         if self._pending:

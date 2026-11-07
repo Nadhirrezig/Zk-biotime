@@ -9,6 +9,7 @@ from PyQt6.QtGui import QBrush, QColor
 from zkreport.engine.models import DayResult, Missing, Status
 
 from . import labels_fr as fr
+from . import theme
 
 COLUMNS = [
     "Matricule", "Nom", "Département", "Horaire", "Arrivée", "Départ", "Pointages",
@@ -18,10 +19,10 @@ COLUMNS = [
 C_CODE, C_NAME, C_DEPT, C_SHIFT, C_IN, C_OUT, C_COUNT, C_STATUS, C_ANOMALY, C_LATE, \
     C_EARLY, C_WORKED, C_OT = range(len(COLUMNS))
 
-BG_SINGLE = QColor("#FFE8A3")
-BG_ABSENT = QColor("#F8D7DA")
-FG_LATE = QColor("#B42318")
-FG_MUTED = QColor("#6B7280")
+BG_SINGLE = QColor(theme.ROW_SINGLE)
+BG_ABSENT = QColor(theme.ROW_ABSENT)
+FG_LATE = QColor(theme.LATE.text)
+FG_MUTED = QColor(theme.TEXT_MUTED)
 
 
 def _hm(dt: datetime | None, day) -> str:

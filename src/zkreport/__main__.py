@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from zkreport.store.settings_store import SettingsStore
 from zkreport.ui.main_window import MainWindow
+from zkreport.ui.theme import apply_light_theme
 
 
 def settings_path() -> Path:
@@ -24,6 +25,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setOrganizationName("ZKReport")
     app.setApplicationName("ZKReport")
+    apply_light_theme(app)
     QLocale.setDefault(QLocale(QLocale.Language.French, QLocale.Country.Tunisia))
     translator = QTranslator(app)
     if translator.load("qtbase_fr", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
