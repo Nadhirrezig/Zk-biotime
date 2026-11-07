@@ -1,19 +1,18 @@
-"""'Journée' page: date, 4 counts, filtered list, export."""
+"""'Journée' page: header (date + export), card bar = filter, search, list."""
 from __future__ import annotations
 
 from datetime import date
 
-from PyQt6.QtCore import QDate, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from zkreport.service import DayCounts, DayReport
 
-from . import labels_fr as fr
 from .results_table import ResultsTable
-from .stat_cards import DAILY_TITLES, StatCards
-from .table_export import ExportBar, snapshot
+from .stat_cards import DAILY_TITLES, FilterCards
+from .table_export import ExportMenu, snapshot
 from .table_models import DAILY_COLUMNS, NAME
-from .widgets import date_edit, long_date
+from .widgets import DateStepper, PageHeader, long_date, title_date
 
 
 class DailyPage(QWidget):
@@ -23,27 +22,17 @@ class DailyPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.report: DayReport | None = None
+        self.counts: DayCounts | None = None
 
-        self.date_edit = date_edit(QDate.currentDate())
-        self.date_edit.dateChanged.connect(lambda _: self.day_changed.emit())
-        prev_day = QPushButton("◀ Veille")
-        prev_day.clicked.connect(lambda: self._shift(-1))
-        next_day = QPushButton("Lendemain ▶")
-        next_day.clicked.connect(lambda: self._shift(1))
-        today = QPushButton("Aujourd'hui")
-        today.clicked.connect(lambda: self.date_edit.setDate(QDate.currentDate()))
-        self.export_bar = ExportBar(self._export_data)
+        self.header = PageHeader()
+        self.stepper = DateStepper()
+        self.stepper.changed.connect(self._on_day_changed)
+        self.export_button = ExportMenu(self._export_data)
+        self.header.actions.addWidget(self.stepper)
+        self.header.actions.addSpacing(8)
+        self.header.actions.addWidget(self.export_button)
 
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Date :"))
-        top.addWidget(self.date_edit)
-        top.addWidget(prev_day)
-        top.addWidget(next_day)
-        top.addWidget(today)
-        top.addStretch(1)
-        top.addWidget(self.export_bar)
-
-        self.cards = StatCards(DAILY_TITLES)
+        self.cards = FilterCards(DAILY_TITLES)
         self.table = ResultsTable(DAILY_COLUMNS, sort_column=DAILY_COLUMNS.index(NAME))
         self.cards.filter_requested.connect(self.table.set_filter)
         self.table.filter_changed.connect(self.cards.set_active_filter)
@@ -52,28 +41,37 @@ class DailyPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        layout.addLayout(top)
+        layout.setSpacing(16)
+        layout.addWidget(self.header)
         layout.addWidget(self.cards)
         layout.addWidget(self.table, 1)
-        self.export_bar.set_enabled(False)
+        self.export_button.set_enabled(False)
+        self._update_title()
 
-    def _shift(self, days: int) -> None:
-        self.date_edit.setDate(self.date_edit.date().addDays(days))
+    @property
+    def date_edit(self):
+        return self.stepper.edit
+
+    def _on_day_changed(self) -> None:
+        self._update_title()
+        self.day_changed.emit()
+
+    def _update_title(self) -> None:
+        self.header.set_text(title_date(self.selected_day()), "Présence de la journée")
 
     def _open_employee(self, index) -> None:
         row = self.table.proxy.mapToSource(index).row()
         self.employee_requested.emit(self.table.model.row_at(row).emp_code)
 
     def selected_day(self) -> date:
-        return self.date_edit.date().toPyDate()
+        return self.stepper.day()
 
     def set_report(self, report: DayReport) -> None:
         self.report = report
         self.counts = DayCounts.from_results(report.results)
-        self.cards.set_counts(self.counts)
+        self.cards.set_counts(self.counts, len(report.results))
         self.table.set_results(report.results)
-        self.export_bar.set_enabled(True)
+        self.export_button.set_enabled(True)
 
     def _export_data(self):
         if self.report is None:

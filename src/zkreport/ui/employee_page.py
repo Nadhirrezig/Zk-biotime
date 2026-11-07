@@ -1,4 +1,4 @@
-"""'Employé' page: one employee over a period, 4 counts, day-by-day list, export."""
+"""'Employé' page: header (employee + export), selectors, card bar = filter, day list."""
 from __future__ import annotations
 
 from datetime import date
@@ -7,9 +7,12 @@ from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QCompleter,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
+    QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
@@ -18,11 +21,13 @@ from zkreport.service import EmployeeReport
 
 from . import labels_fr as fr
 from . import theme
+from .icons import icon
 from .results_table import ResultsTable
-from .stat_cards import EMPLOYEE_TITLES, StatCards
-from .table_export import ExportBar, snapshot
+from .stat_cards import EMPLOYEE_TITLES, FilterCards
+from .table_export import ExportMenu, snapshot
 from .table_models import DATE, EMPLOYEE_COLUMNS
-from .widgets import date_edit, short_date
+from .theme import set_role
+from .widgets import PageHeader, date_edit, section_label, short_date
 
 
 class EmployeePage(QWidget):
@@ -32,67 +37,106 @@ class EmployeePage(QWidget):
         super().__init__(parent)
         self.report: EmployeeReport | None = None
 
+        self.header = PageHeader()
+        self.export_button = ExportMenu(self._export_data)
+        self.header.actions.addWidget(self.export_button)
+
+        # Selector bar: who + when
         self.employee_combo = QComboBox()
         self.employee_combo.setEditable(True)
         self.employee_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.employee_combo.setMinimumWidth(280)
-        self.employee_combo.lineEdit().setPlaceholderText("Choisir un employé…")
+        self.employee_combo.setMinimumWidth(300)
+        self.employee_combo.lineEdit().setPlaceholderText("Rechercher un employé…")
+        self.employee_combo.lineEdit().addAction(
+            icon("user", theme.TEXT_MUTED), QLineEdit.ActionPosition.LeadingPosition)
         completer = self.employee_combo.completer()
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.employee_combo.currentIndexChanged.connect(lambda _: self.selection_changed.emit())
+        self.employee_combo.currentIndexChanged.connect(lambda _: self._changed())
 
         today = QDate.currentDate()
         self.from_edit = date_edit(QDate(today.year(), today.month(), 1))
         self.to_edit = date_edit(today)
-        self.from_edit.dateChanged.connect(lambda _: self.selection_changed.emit())
-        self.to_edit.dateChanged.connect(lambda _: self.selection_changed.emit())
+        self.from_edit.dateChanged.connect(lambda _: self._changed())
+        self.to_edit.dateChanged.connect(lambda _: self._changed())
         this_month = QPushButton("Ce mois")
-        this_month.clicked.connect(lambda: self._month(0))
         last_month = QPushButton("Mois précédent")
-        last_month.clicked.connect(lambda: self._month(-1))
-        self.export_bar = ExportBar(self._export_data)
+        for button, offset in ((this_month, 0), (last_month, -1)):
+            set_role(button, "chip")
+            button.clicked.connect(lambda _=False, o=offset: self._month(o))
 
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Employé :"))
-        top.addWidget(self.employee_combo)
-        top.addWidget(QLabel("Du"))
-        top.addWidget(self.from_edit)
-        top.addWidget(QLabel("au"))
-        top.addWidget(self.to_edit)
-        top.addWidget(this_month)
-        top.addWidget(last_month)
-        top.addStretch(1)
-        top.addWidget(self.export_bar)
+        selectors = QFrame()
+        selectors.setObjectName("selectors")
+        selectors.setStyleSheet(f"#selectors {{ background: {theme.SURFACE};"
+                                f" border: 1px solid {theme.BORDER}; border-radius: 12px; }}")
+        row = QHBoxLayout(selectors)
+        row.setContentsMargins(14, 10, 14, 10)
+        row.setSpacing(8)
+        row.addWidget(section_label("EMPLOYÉ"))
+        row.addWidget(self.employee_combo, 2)
+        row.addSpacing(16)
+        row.addWidget(section_label("PÉRIODE"))
+        row.addWidget(self.from_edit)
+        row.addWidget(QLabel("→"))
+        row.addWidget(self.to_edit)
+        row.addSpacing(6)
+        row.addWidget(this_month)
+        row.addWidget(last_month)
+        row.addStretch(1)
 
-        self.hint = QLabel("Choisissez un employé pour voir ses statistiques sur la période.")
-        self.hint.setStyleSheet(f"color: {theme.TEXT_MUTED};")
-        self.cards = StatCards(EMPLOYEE_TITLES)
+        self.cards = FilterCards(EMPLOYEE_TITLES)
         self.table = ResultsTable(EMPLOYEE_COLUMNS, sort_column=EMPLOYEE_COLUMNS.index(DATE),
                                   with_department=False, with_search=False)
         self.cards.filter_requested.connect(self.table.set_filter)
         self.table.filter_changed.connect(self.cards.set_active_filter)
 
+        # Empty state until an employee is chosen
+        self.empty = QLabel("Choisissez un employé et une période\npour voir ses pointages.")
+        self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 14px;"
+                                 f" background: {theme.SURFACE}; border: 1px dashed {theme.BORDER_STRONG};"
+                                 " border-radius: 12px;")
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(16)
+        content_layout.addWidget(self.cards)
+        content_layout.addWidget(self.table, 1)
+        self.body = QStackedLayout()
+        self.body.addWidget(self.empty)
+        self.body.addWidget(content)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        layout.addLayout(top)
-        layout.addWidget(self.hint)
-        layout.addWidget(self.cards)
-        layout.addWidget(self.table, 1)
-        self.export_bar.set_enabled(False)
+        layout.setSpacing(16)
+        layout.addWidget(self.header)
+        layout.addWidget(selectors)
+        layout.addLayout(self.body, 1)
+        self.export_button.set_enabled(False)
+        self._update_title()
+
+    # -- selection -------------------------------------------------------------
+    def _changed(self) -> None:
+        self._update_title()
+        self.selection_changed.emit()
+
+    def _update_title(self) -> None:
+        index = self.employee_combo.currentIndex()
+        name = self.employee_combo.itemText(index).split(" – ", 1)[-1] if index >= 0 \
+            else "Fiche employé"
+        period = f"Du {short_date(self.from_edit.date().toPyDate())} au " \
+                 f"{short_date(self.to_edit.date().toPyDate())}"
+        self.header.set_text(name, period if index >= 0 else "Pointages d'un employé sur une période")
 
     def _month(self, offset: int) -> None:
         anchor = QDate.currentDate().addMonths(offset)
         first = QDate(anchor.year(), anchor.month(), 1)
-        last = first.addMonths(1).addDays(-1)
-        if offset == 0:
-            last = QDate.currentDate()
+        last = QDate.currentDate() if offset == 0 else first.addMonths(1).addDays(-1)
         for edit, value in ((self.from_edit, first), (self.to_edit, last)):
             edit.blockSignals(True)
             edit.setDate(value)
             edit.blockSignals(False)
-        self.selection_changed.emit()
+        self._changed()
 
     def set_employees(self, employees: list[tuple[str, str]]) -> None:
         """[(emp_code, label)], keeps the current selection."""
@@ -122,12 +166,13 @@ class EmployeePage(QWidget):
             return None
         return code, self.from_edit.date().toPyDate(), self.to_edit.date().toPyDate()
 
+    # -- data ------------------------------------------------------------------
     def set_report(self, report: EmployeeReport) -> None:
         self.report = report
-        self.hint.hide()
-        self.cards.set_counts(report.counts)
+        self.body.setCurrentIndex(1)
+        self.cards.set_counts(report.counts, len(report.results))
         self.table.set_results(report.results)
-        self.export_bar.set_enabled(True)
+        self.export_button.set_enabled(True)
 
     def _export_data(self):
         r = self.report

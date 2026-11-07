@@ -7,11 +7,14 @@ from typing import Callable
 from PyQt6.QtCore import QMarginsF, QStandardPaths, Qt, pyqtSignal
 from PyQt6.QtGui import QPageLayout, QPageSize, QTextDocument
 from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
-from PyQt6.QtWidgets import QFileDialog, QHBoxLayout, QMessageBox, QPushButton, QWidget
+from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPushButton
 
 from zkreport.export import TableExport, build_html, export_xlsx
 
-from .table_models import NUMERIC, ResultsFilterProxy, display, row_fill
+from . import theme
+from .icons import icon
+from .theme import set_role
+from .table_models import HEADERS, NUMERIC, ResultsFilterProxy, display, row_fill
 
 
 def snapshot(proxy: ResultsFilterProxy, title: str, meta: list[str]) -> TableExport:
@@ -21,8 +24,7 @@ def snapshot(proxy: ResultsFilterProxy, title: str, meta: list[str]) -> TableExp
     return TableExport(
         title=title,
         meta=tuple(meta),
-        headers=tuple(proxy.sourceModel().headerData(i, Qt.Orientation.Horizontal)
-                      for i in range(len(columns))),
+        headers=tuple(HEADERS[key] for key in columns),
         rows=tuple(tuple(display(r, key) for key in columns) for r in rows),
         row_fills=tuple(row_fill(r) for r in rows),
         numeric_columns=frozenset(i for i, key in enumerate(columns) if key in NUMERIC),
@@ -50,29 +52,30 @@ def write_pdf(table: TableExport, path: str | Path) -> None:
     _document(table).print(printer)
 
 
-class ExportBar(QWidget):
-    """Three buttons. `provider()` returns (TableExport, base file name) or None."""
+class ExportMenu(QPushButton):
+    """Primary 'Exporter' button with a menu: Excel, PDF, Imprimer.
+    `provider()` returns (TableExport, base file name) or None."""
 
     message = pyqtSignal(str)
 
     def __init__(self, provider: Callable[[], tuple[TableExport, str] | None], parent=None):
-        super().__init__(parent)
+        super().__init__("Exporter", parent)
         self._provider = provider
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        self.excel_button = QPushButton("Exporter Excel")
-        self.pdf_button = QPushButton("Exporter PDF")
-        self.print_button = QPushButton("Imprimer")
-        self.excel_button.clicked.connect(self.export_excel)
-        self.pdf_button.clicked.connect(self.export_pdf)
-        self.print_button.clicked.connect(self.print_table)
-        for button in (self.excel_button, self.pdf_button, self.print_button):
-            layout.addWidget(button)
+        set_role(self, "primary")
+        self.setIcon(icon("download", "#FFFFFF"))
+        self.setToolTip("Exporter ou imprimer ce qui est affiché (filtres compris)")
+        menu = QMenu(self)
+        self.excel_action = menu.addAction(icon("sheet", theme.DOUBLE.text),
+                                           "Classeur Excel (.xlsx)", self.export_excel)
+        self.pdf_action = menu.addAction(icon("file", theme.ABSENT.text),
+                                         "Document PDF", self.export_pdf)
+        menu.addSeparator()
+        self.print_action = menu.addAction(icon("printer", theme.TEXT_SECONDARY),
+                                           "Imprimer…", self.print_table)
+        self.setMenu(menu)
 
     def set_enabled(self, enabled: bool) -> None:
-        for button in (self.excel_button, self.pdf_button, self.print_button):
-            button.setEnabled(enabled)
+        self.setEnabled(enabled)
 
     def _ask_path(self, base: str, caption: str, suffix: str, filter_text: str) -> str | None:
         folder = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)

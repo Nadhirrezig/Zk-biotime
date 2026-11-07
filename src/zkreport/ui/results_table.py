@@ -1,7 +1,9 @@
-"""Filter bar + sortable table, shared by the daily and employee pages."""
+"""Search/department bar + sortable table with status pills. Filter mode comes from the
+card bar (FilterCards) through `set_filter`."""
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -9,14 +11,67 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QStyle,
+    QStyledItemDelegate,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
+from zkreport.engine.models import Status
+
 from . import labels_fr as fr
 from . import theme
-from .table_models import ResultsFilterProxy, ResultsTableModel
+from .icons import icon
+from .table_models import RESULT_ROLE, STATUS, ResultsFilterProxy, ResultsTableModel
+
+PILL_TONES = {
+    Status.COMPLETE: theme.DOUBLE,
+    Status.SINGLE_PUNCH: theme.SINGLE,
+    Status.ABSENT: theme.ABSENT,
+}
+
+
+def _draw_row_base(painter: QPainter, option, selected: bool) -> None:
+    if selected:
+        painter.fillRect(option.rect, QColor(theme.ACCENT_TINT))
+    painter.setPen(QPen(QColor(theme.DIVIDER), 1))
+    painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+
+
+class StatusPillDelegate(QStyledItemDelegate):
+    """Status as a rounded pill: coloured dot + label (grey for repos/férié/congé)."""
+
+    def paint(self, painter: QPainter, option, index) -> None:
+        r = index.data(RESULT_ROLE)
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        _draw_row_base(painter, option, bool(option.state & QStyle.StateFlag.State_Selected))
+        tone = PILL_TONES.get(r.status, theme.OTHER) if r else theme.OTHER
+        font = QFont(option.font)
+        font.setPixelSize(12)
+        font.setWeight(QFont.Weight.DemiBold)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()  # measure with the font actually used to draw
+        width = min(metrics.horizontalAdvance(text) + 36, option.rect.width() - 16)
+        pill = QRectF(option.rect.left() + 10, option.rect.center().y() - 11, width, 22)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(tone.tint))
+        painter.drawRoundedRect(pill, 11, 11)
+        painter.setBrush(QColor(tone.solid))
+        painter.drawEllipse(QRectF(pill.left() + 10, pill.center().y() - 3, 6, 6))
+        painter.setPen(QColor(tone.text))
+        text_rect = pill.adjusted(22, 0, -6, 0)
+        if metrics.horizontalAdvance(text) > text_rect.width():
+            text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, int(text_rect.width()))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                         text)
+        painter.restore()
+
+    def sizeHint(self, option, index) -> QSize:
+        base = super().sizeHint(option, index)
+        return QSize(base.width() + 40, base.height())
 
 
 class ResultsTable(QWidget):
@@ -29,33 +84,29 @@ class ResultsTable(QWidget):
         self.proxy = ResultsFilterProxy(self)
         self.proxy.setSourceModel(self.model)
 
-        self.filter_combo = QComboBox()
-        for key, label in fr.FILTERS:
-            self.filter_combo.addItem(label, key)
-        self.filter_combo.currentIndexChanged.connect(self._on_filter_combo)
-
         bar = QHBoxLayout()
-        bar.addWidget(QLabel("Filtre :"))
-        bar.addWidget(self.filter_combo)
+        bar.setSpacing(8)
+        self.search = None
+        if with_search:
+            self.search = QLineEdit()
+            self.search.setPlaceholderText("Rechercher un employé (nom ou matricule)")
+            self.search.setClearButtonEnabled(True)
+            self.search.addAction(icon("search", theme.TEXT_MUTED),
+                                  QLineEdit.ActionPosition.LeadingPosition)
+            self.search.setMaximumWidth(360)
+            self.search.textChanged.connect(self.proxy.set_text)
+            bar.addWidget(self.search, 1)
         self.dept_combo = None
         if with_department:
             self.dept_combo = QComboBox()
             self.dept_combo.addItem("Tous les départements", "")
+            self.dept_combo.setMinimumWidth(200)
             self.dept_combo.currentIndexChanged.connect(
                 lambda _: self.proxy.set_department(self.dept_combo.currentData()))
-            bar.addWidget(QLabel("Département :"))
             bar.addWidget(self.dept_combo)
-        self.search = None
-        if with_search:
-            self.search = QLineEdit()
-            self.search.setPlaceholderText("Rechercher un employé (nom ou matricule)…")
-            self.search.setClearButtonEnabled(True)
-            self.search.textChanged.connect(self.proxy.set_text)
-            bar.addWidget(self.search, 1)
-        else:
-            bar.addStretch(1)
+        bar.addStretch(1)
         self.count_label = QLabel()
-        self.count_label.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        self.count_label.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 12px;")
         bar.addWidget(self.count_label)
         for signal in (self.proxy.rowsInserted, self.proxy.rowsRemoved,
                        self.proxy.modelReset, self.proxy.layoutChanged):
@@ -66,15 +117,27 @@ class ResultsTable(QWidget):
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(sort_column, Qt.SortOrder.AscendingOrder)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setShowGrid(False)
+        self.table.setWordWrap(False)
+        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(44)
+        self.table.setItemDelegateForColumn(columns.index(STATUS), StatusPillDelegate(self.table))
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setStretchLastSection(True)
+        header.setHighlightSections(False)
+        header.setMinimumSectionSize(80)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(bar)
+        layout.setSpacing(10)
+        if with_search or with_department:
+            layout.addLayout(bar)
+        else:
+            self.count_label.hide()
         layout.addWidget(self.table, 1)
         self._update_count()
 
@@ -95,9 +158,9 @@ class ResultsTable(QWidget):
         self._update_count()
 
     def set_filter(self, mode: str) -> None:
-        index = self.filter_combo.findData(mode)
-        if index >= 0:
-            self.filter_combo.setCurrentIndex(index)
+        if mode != self.proxy.mode:
+            self.proxy.set_mode(mode)
+        self.filter_changed.emit(mode)
 
     def visible_rows(self):
         return self.proxy.visible_rows()
@@ -113,10 +176,7 @@ class ResultsTable(QWidget):
             lines.append(f"Recherche : {self.search.text().strip()}")
         return lines
 
-    def _on_filter_combo(self, _index: int) -> None:
-        mode = self.filter_combo.currentData()
-        self.proxy.set_mode(mode)
-        self.filter_changed.emit(mode)
-
     def _update_count(self, *args) -> None:
-        self.count_label.setText(f"{self.proxy.rowCount()} / {self.model.rowCount()} lignes")
+        shown, total = self.proxy.rowCount(), self.model.rowCount()
+        self.count_label.setText(f"{shown} ligne{'s' if shown > 1 else ''}" if shown == total
+                                 else f"{shown} sur {total} lignes")

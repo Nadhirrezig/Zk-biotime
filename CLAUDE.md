@@ -161,6 +161,11 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
 - `src/zkreport/db/`: psycopg read-only connection + SELECT-only repository.
 - `src/zkreport/service.py`: load one day / one employee over a period (DB → engine), no Qt.
 - `src/zkreport/ui/`: PyQt6 (main window, dashboard, daily view, settings, QThread jobs).
-  Colours live in `ui/theme.py` (light theme only, Fusion style). Pages: `daily_page.py`,
-  `employee_page.py`; shared `results_table.py`, `stat_cards.py` (4 cards = table filters).
+  Look (session 3): dark sidebar (`sidebar.py`: Journée, Employé, Actualiser, Paramètres,
+  data status), page header with big title + actions (`widgets.py`: PageHeader, DateStepper),
+  card bar that IS the filter (`stat_cards.py` FilterCards: Tous/Double/Unique/Absents/Pointés),
+  table with status pills (`results_table.py`), one primary "Exporter ▾" menu
+  (`table_export.py`). Tokens + app stylesheet in `ui/theme.py` (light only, Fusion; button
+  roles via `set_role`: primary/ghost/stepper/chip); icons painted in `ui/icons.py`.
+  Colour meaning: green = double, amber = unique, red = absent, indigo = pointés/actions.
 - Run: `python -m zkreport`. Tests: `pytest` (UI tests run with `QT_QPA_PLATFORM=offscreen`).

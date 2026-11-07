@@ -67,13 +67,15 @@ def test_daily_cards_and_filters(app, window):
     assert cards.value(fr.FILTER_ABSENT) == "1"
     assert cards.value(fr.FILTER_PRESENT) == "4"
     table = window.daily.table
+    assert cards.value(fr.FILTER_ALL) == "5"
     assert table.model.columnCount() == 7
+    assert window.daily.header.title.text() == "Jeudi 24 septembre 2026"
 
     cards.cards[fr.FILTER_ONCE].activated.emit(fr.FILTER_ONCE)      # click card
     assert {r.emp_code for r in table.visible_rows()} == {"302", "215"}
     assert cards.cards[fr.FILTER_ONCE].is_selected()
     cards.cards[fr.FILTER_ONCE].activated.emit(fr.FILTER_ONCE)      # click again clears
-    assert table.filter_combo.currentData() == fr.FILTER_ALL
+    assert table.proxy.mode == fr.FILTER_ALL
 
     table.set_filter(fr.FILTER_TWICE)
     assert {r.emp_code for r in table.visible_rows()} == {"247", "227"}
@@ -94,7 +96,8 @@ def test_employee_view_period_stats(app, window):
     page.from_edit.setDate(QDate(2026, 9, 1))
     page.to_edit.setDate(QDate(2026, 9, 30))
     window.show_employee("302")                      # e.g. double-click in the daily list
-    assert window.tabs.currentWidget() is page
+    assert window.stack.currentWidget() is page
+    assert window.sidebar.buttons[1].isChecked()
     wait_for(app, lambda: page.report is not None and idle(window))
     report = page.report
     assert report.employee.emp_code == "302"
