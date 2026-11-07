@@ -1,130 +1,112 @@
-"""Main window: date picker, dashboard counts, daily table, auto refresh."""
+"""Main window: 'Journée' and 'Employé' tabs, background loading, auto refresh."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Callable
 from zoneinfo import ZoneInfo
 
-from PyQt6.QtCore import QDate, QTimer
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QKeySequence
-from PyQt6.QtWidgets import (
-    QDateEdit,
-    QLabel,
-    QMainWindow,
-    QToolBar,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QLabel, QMainWindow, QTabWidget, QToolBar, QVBoxLayout, QWidget
 
-from zkreport.engine.models import EngineConfig
-from zkreport.service import DayReport, db_repo_factory, load_day_report
+from zkreport.service import (
+    DayReport,
+    EmployeeReport,
+    RepoFactory,
+    db_repo_factory,
+    load_day_report,
+    load_employee_report,
+)
 from zkreport.store import secrets
 from zkreport.store.settings_store import SettingsStore
 
-from .daily_view import DailyView
-from .dashboard import Dashboard
+from . import labels_fr as fr
 from . import theme
+from .daily_page import DailyPage
+from .employee_page import EmployeePage
 from .settings_dialog import SettingsDialog
 from .workers import JobRunner
 
-# loader(config, day) -> DayReport ; injectable for tests and demos
-Loader = Callable[[EngineConfig, date], DayReport]
-
-
-def db_loader(store: SettingsStore) -> Loader:
-    def load(config: EngineConfig, day: date) -> DayReport:
-        params = store.db_params()
-        password = secrets.get_password(params.keyring_account)
-        return load_day_report(db_repo_factory(params, password), config, day)
-    return load
+# Returns the repository factory to use for the next load (DB by default; fakes in tests).
+RepoFactoryProvider = Callable[[], RepoFactory]
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, store: SettingsStore, loader: Loader | None = None, parent=None):
+    def __init__(self, store: SettingsStore,
+                 repo_factory_provider: RepoFactoryProvider | None = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("ZK Rapport de présence — lecture seule")
         self.resize(1280, 760)
         self.store = store
-        self._loader_factory = (lambda: loader) if loader else (lambda: db_loader(store))
-        self.report: DayReport | None = None
-        self._job: int | None = None
-        self._pending = False
+        self._provider = repo_factory_provider or self._db_factory
+        self._jobs: dict[str, int | None] = {"day": None, "employee": None}
+        self._requested: dict[str, object] = {}   # what each running job was asked for
+        self._pending: set[str] = set()
         self._runner = JobRunner(self)
-        self._runner.done.connect(self._on_loaded)
+        self._runner.done.connect(self._on_done)
         self._runner.error.connect(self._on_failed)
 
         self._build_toolbar()
         self.error_banner = QLabel()
         self.error_banner.setWordWrap(True)
         self.error_banner.setStyleSheet(
-            "background:#FDECEC; color:#B42318; padding:6px; border-radius:4px;")
+            f"background:{theme.LATE.tint}; color:{theme.LATE.text}; padding:6px;"
+            " border-radius:4px;")
         self.error_banner.hide()
-        self.dashboard = Dashboard()
-        self.daily = DailyView()
-        self.dashboard.filter_requested.connect(self.daily.set_filter)
-        self.daily.filter_changed.connect(self.dashboard.set_active_filter)
+
+        self.daily = DailyPage()
+        self.employee = EmployeePage()
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.daily, "Journée")
+        self.tabs.addTab(self.employee, "Employé")
+        self.daily.day_changed.connect(self.refresh_day)
+        self.daily.employee_requested.connect(self.show_employee)
+        self.employee.selection_changed.connect(self.refresh_employee)
+        for bar in (self.daily.export_bar, self.employee.export_bar):
+            bar.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
 
         central = QWidget()
         central.setObjectName("page")
         central.setStyleSheet(f"#page {{ background: {theme.PAGE_BG}; }}")
         layout = QVBoxLayout(central)
         layout.setContentsMargins(16, 12, 16, 8)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         layout.addWidget(self.error_banner)
-        layout.addWidget(self.dashboard)
-        layout.addWidget(self.daily, 1)
+        layout.addWidget(self.tabs, 1)
         self.setCentralWidget(central)
 
         self.status = QLabel()
-        self.statusBar().addWidget(self.status, 1)
+        self.statusBar().addPermanentWidget(self.status, 1)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
         self._apply_settings()
 
-    # -- UI -------------------------------------------------------------------
+    # -- setup -----------------------------------------------------------------
+    def _db_factory(self) -> RepoFactory:
+        params = self.store.db_params()
+        return db_repo_factory(params, secrets.get_password(params.keyring_account))
+
     def _build_toolbar(self) -> None:
         bar = QToolBar("Principal")
         bar.setMovable(False)
         self.addToolBar(bar)
-        bar.addWidget(QLabel(" Date : "))
-        self.date_edit = QDateEdit()
-        self.date_edit.setCalendarPopup(True)
-        self.date_edit.setDisplayFormat("dddd dd/MM/yyyy")
-        self.date_edit.setDate(QDate.currentDate())
-        self.date_edit.dateChanged.connect(lambda _: self.refresh())
-        bar.addWidget(self.date_edit)
-        prev_day = QAction("◀ Veille", self)
-        prev_day.triggered.connect(lambda: self._shift_day(-1))
-        next_day = QAction("Lendemain ▶", self)
-        next_day.triggered.connect(lambda: self._shift_day(1))
-        today = QAction("Aujourd'hui", self)
-        today.triggered.connect(lambda: self.date_edit.setDate(QDate.currentDate()))
-        self.refresh_action = QAction("Actualiser", self)
-        self.refresh_action.setShortcut(QKeySequence("F5"))
-        self.refresh_action.triggered.connect(self.refresh)
+        refresh = QAction("Actualiser", self)
+        refresh.setShortcut(QKeySequence("F5"))
+        refresh.triggered.connect(self.refresh)
         settings = QAction("Paramètres…", self)
         settings.triggered.connect(self.open_settings)
-        for action in (prev_day, next_day, today):
-            bar.addAction(action)
-        bar.addSeparator()
-        bar.addAction(self.refresh_action)
+        bar.addAction(refresh)
         bar.addSeparator()
         bar.addAction(settings)
 
-    def _shift_day(self, delta: int) -> None:
-        self.date_edit.setDate(self.date_edit.date().addDays(delta))
-
-    def selected_day(self) -> date:
-        return self.date_edit.date().toPyDate()
-
     def _apply_settings(self) -> None:
         self.config = self.store.engine_config()
-        self.loader = self._loader_factory()
         self.timer.start(self.store.get_int("refresh_interval_sec") * 1000)
 
     def open_settings(self) -> None:
-        departments = [r.department for r in self.report.results] if self.report else []
+        departments = [r.department for r in self.daily.report.results] \
+            if self.daily.report else []
         dialog = SettingsDialog(self.store, departments, self)
         if dialog.exec():
             self._apply_settings()
@@ -132,38 +114,87 @@ class MainWindow(QMainWindow):
 
     # -- loading ---------------------------------------------------------------
     def refresh(self) -> None:
-        """Start a background load for the selected date (skipped if one is running)."""
-        if self._runner.is_running(self._job):
-            self._pending = True
-            return
-        self._pending = False
-        config, day, loader = self.config, self.selected_day(), self.loader
-        self.status.setText(f"Chargement du {day:%d/%m/%Y}…")
-        self._job = self._runner.start(lambda: loader(config, day))
+        self.refresh_day()
+        self.refresh_employee()
 
-    def _on_loaded(self, job_id: int, report: object) -> None:
-        if job_id != self._job:
+    def refresh_day(self) -> None:
+        config, day = self.config, self.daily.selected_day()
+        self._start("day", day, lambda factory: load_day_report(factory, config, day),
+                    f"Chargement du {day:%d/%m/%Y}…")
+
+    def refresh_employee(self) -> None:
+        selection = self.employee.selection()
+        if selection is None:
             return
-        self._job = None
-        if report.day != self.selected_day():
-            self.refresh()  # date changed while loading
+        code, date_from, date_to = selection
+        config = self.config
+        self._start("employee", selection,
+                    lambda factory: load_employee_report(factory, config, code, date_from, date_to),
+                    "Chargement de l'employé…")
+
+    def _current_request(self, kind: str):
+        return self.daily.selected_day() if kind == "day" else self.employee.selection()
+
+    def _start(self, kind: str, request, work, status: str) -> None:
+        if self._runner.is_running(self._jobs[kind]):
+            self._pending.add(kind)   # reload once the running job ends
             return
-        self.report = report
+        try:
+            factory = self._provider()
+        except Exception as exc:  # e.g. invalid settings
+            self._show_error(str(exc))
+            return
+        self.status.setText(status)
+        self._requested[kind] = request
+        self._jobs[kind] = self._runner.start(lambda: work(factory))
+
+    def _kind_of(self, job_id: int) -> str | None:
+        return next((k for k, j in self._jobs.items() if j == job_id), None)
+
+    def _on_done(self, job_id: int, report: object) -> None:
+        kind = self._kind_of(job_id)
+        if kind is None:
+            return
+        self._jobs[kind] = None
         self.error_banner.hide()
-        holiday = next((r.holiday_name for r in report.results if r.holiday_name), None)
-        self.dashboard.set_summary(report.summary, report.day, holiday)
-        self.daily.set_results(report.results)
-        self.status.setText(self._status_text(report))
-        if self._pending:
-            self.refresh()
+        reload = kind in self._pending or self._requested.get(kind) != self._current_request(kind)
+        self._pending.discard(kind)
+        if kind == "day":
+            self.daily.set_report(report)
+            self._update_employee_list(report)
+            self.status.setText(self._status_text(report))
+        else:
+            self.employee.set_report(report)
+            self.status.setText(self._status_text(self.daily.report) if self.daily.report
+                                else f"Mis à jour à {report.loaded_at:%H:%M:%S}")
+        if reload:  # the selection changed while loading
+            if kind == "day":
+                self.refresh_day()
+            else:
+                self.refresh_employee()
 
     def _on_failed(self, job_id: int, message: str) -> None:
-        if job_id != self._job:
+        kind = self._kind_of(job_id)
+        if kind is None:
             return
-        self._job = None
+        self._jobs[kind] = None
+        self._pending.discard(kind)
+        self._show_error(message)
+
+    def _show_error(self, message: str) -> None:
         self.error_banner.setText(message + "  — Vérifiez les paramètres de connexion.")
         self.error_banner.show()
         self.status.setText(f"Échec du chargement ({datetime.now():%H:%M:%S}).")
+
+    def _update_employee_list(self, report: DayReport) -> None:
+        seen: dict[str, str] = {}
+        for r in report.results:
+            seen.setdefault(r.emp_code, fr.employee_label(r.name, r.emp_code))
+        self.employee.set_employees(sorted(seen.items(), key=lambda kv: kv[1].casefold()))
+
+    def show_employee(self, emp_code: str) -> None:
+        self.tabs.setCurrentWidget(self.employee)
+        self.employee.select_employee(emp_code)
 
     def _status_text(self, report: DayReport) -> str:
         interval = self.store.get_int("refresh_interval_sec")

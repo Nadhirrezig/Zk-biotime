@@ -54,9 +54,10 @@ class FakeRepository:
         self.calls.append("employees")
         return list(self._employees)
 
-    def punches(self, start, end):
+    def punches(self, start, end, emp_code=None):
         self.calls.append(("punches", start, end))
-        return [p for p in self._punches if start <= p.time < end]
+        return [p for p in self._punches if start <= p.time < end
+                and (emp_code is None or p.emp_code == emp_code)]
 
     def last_punch_time(self):
         return max(p.time for p in self._punches) if self._punches else None

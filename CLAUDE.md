@@ -141,12 +141,23 @@ Tables use `QTableView` + `QAbstractTableModel` + `QSortFilterProxyModel`.
 - Dev container cannot reach 192.168.10.6: tests use `tests/fixtures/rahma_punches.csv`
   (built by `tools/build_rahma_fixture.py`) and `tests/fakes.py`.
 
+## Decisions (session 3, client feedback: "keep it basic")
+- The client group wants **basic reporting only**. Screens show: pointage double, pointage
+  unique, absents, total pointés (= double + unique), per-employee period stats, Excel/PDF
+  export and printing. No rate, lateness, early departure, hours or overtime on screen.
+- The engine still computes lateness/hours (tests unchanged); the UI just does not show them.
+  Lateness/overtime settings are hidden from Paramètres but kept in SQLite.
+- Two tabs: **Journée** (date, 4 cards, list with filters, double-click → employee) and
+  **Employé** (employee + period, 4 day counts, day-by-day list).
+- Exports use what is on screen (filters + sort): `src/zkreport/export.py` (Excel, HTML),
+  `ui/table_export.py` (PDF via QPrinter, print dialog).
+
 ## Code map
 - `src/zkreport/engine/`: pure Python (guarded by `tests/test_engine_purity.py`).
 - `src/zkreport/store/`: SQLite settings (`settings_store.py`, seeds in `seed.py`), keyring.
 - `src/zkreport/db/`: psycopg read-only connection + SELECT-only repository.
-- `src/zkreport/service.py`: load one day (DB → engine), no Qt.
+- `src/zkreport/service.py`: load one day / one employee over a period (DB → engine), no Qt.
 - `src/zkreport/ui/`: PyQt6 (main window, dashboard, daily view, settings, QThread jobs).
-  Colours live in `ui/theme.py` (light theme only, Fusion style). Dashboard = presence hero
-  card + anomaly cards; colour only when a count is > 0; cards are filters synced with the combo.
+  Colours live in `ui/theme.py` (light theme only, Fusion style). Pages: `daily_page.py`,
+  `employee_page.py`; shared `results_table.py`, `stat_cards.py` (4 cards = table filters).
 - Run: `python -m zkreport`. Tests: `pytest` (UI tests run with `QT_QPA_PLATFORM=offscreen`).

@@ -1,8 +1,8 @@
 """French UI labels."""
-from zkreport.engine.models import LateMode, Missing, Status
+from zkreport.engine.models import DayResult, Missing, Status
 
 STATUS = {
-    Status.COMPLETE: "Complet",
+    Status.COMPLETE: "Pointage double",
     Status.SINGLE_PUNCH: "Pointage unique",
     Status.ABSENT: "Absent",
     Status.LEAVE: "Congé",
@@ -12,32 +12,40 @@ STATUS = {
 
 MISSING = {
     Missing.NONE: "",
-    Missing.ARRIVAL: "Arrivée manquante",
-    Missing.DEPARTURE: "Départ manquant",
-}
-
-LATE_MODE = {
-    LateMode.AFTER_TOLERANCE: "Après la tolérance (retard = arrivée − (début + tolérance))",
-    LateMode.FROM_START: "Depuis l'heure de début (retard = arrivée − début)",
+    Missing.ARRIVAL: "arrivée manquante",
+    Missing.DEPARTURE: "départ manquant",
 }
 
 WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
 FILTER_ALL = "all"
-FILTER_PRESENT = "present"
+FILTER_PRESENT = "present"   # double + single
 FILTER_TWICE = "twice"
 FILTER_ONCE = "once"
 FILTER_ABSENT = "absent"
-FILTER_LATE = "late"
 
 FILTERS = [
     (FILTER_ALL, "Tous"),
-    (FILTER_PRESENT, "Présents"),
-    (FILTER_TWICE, "Deux pointages (complet)"),
-    (FILTER_ONCE, "Un seul pointage"),
+    (FILTER_TWICE, "Pointage double"),
+    (FILTER_ONCE, "Pointage unique"),
     (FILTER_ABSENT, "Absents"),
-    (FILTER_LATE, "En retard"),
+    (FILTER_PRESENT, "Pointés (double + unique)"),
 ]
+FILTER_LABELS = dict(FILTERS)
+
+
+def status_text(r: DayResult) -> str:
+    text = STATUS[r.status]
+    details = []
+    if r.missing is not Missing.NONE:
+        details.append(MISSING[r.missing])
+    if r.unscheduled:
+        details.append("hors planning")
+    if r.holiday_name and r.status is not Status.HOLIDAY:
+        details.append(f"férié : {r.holiday_name}")
+    if r.status is Status.HOLIDAY and r.holiday_name:
+        details.append(r.holiday_name)
+    return f"{text} ({', '.join(details)})" if details else text
 
 
 def weekdays_label(days) -> str:
@@ -55,10 +63,6 @@ def weekdays_label(days) -> str:
              else f"{WEEKDAYS[g[0]]}, {WEEKDAYS[g[1]]}" if len(g) == 2
              else f"{WEEKDAYS[g[0]]}–{WEEKDAYS[g[-1]]}" for g in groups]
     return ", ".join(parts) or "Aucun"
-
-
-def minutes_hm(minutes: int) -> str:
-    return f"{minutes // 60}:{minutes % 60:02d}" if minutes else ""
 
 
 def employee_label(name: str, emp_code: str) -> str:

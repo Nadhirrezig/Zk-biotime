@@ -32,3 +32,32 @@ def test_day_report_with_seeded_config(tmp_path):
 def test_friendly_error_is_french():
     msg = friendly_error(psycopg.OperationalError("connection refused"))
     assert msg.startswith("Connexion à la base impossible")
+
+
+def test_employee_report_period(tmp_path):
+    from zkreport.service import load_employee_report
+    store = SettingsStore(tmp_path / "s.db")
+    config = store.engine_config()
+    report = load_employee_report(fake_factory(), config, "302", date(2026, 9, 1), date(2026, 9, 30))
+    assert report.employee.full_name == "Rahma Achour"
+    assert len(report.results) == 30
+    c = report.counts
+    # September: 1 single punch (24th), 1 absence (9th), Sundays are rest.
+    assert (c.single, c.absent) == (1, 1)
+    assert c.total == c.double + c.single
+    # Swapped dates are normalised; unknown employee gives an empty report.
+    swapped = load_employee_report(fake_factory(), config, "302", date(2026, 9, 30), date(2026, 9, 1))
+    assert (swapped.date_from, swapped.date_to) == (date(2026, 9, 1), date(2026, 9, 30))
+    empty = load_employee_report(fake_factory(), config, "999", date(2026, 9, 1), date(2026, 9, 2))
+    assert empty.employee is None and empty.results == ()
+    store.close()
+
+
+def test_employee_report_rejects_huge_range(tmp_path):
+    import pytest
+    from zkreport.service import load_employee_report
+    store = SettingsStore(tmp_path / "s.db")
+    with pytest.raises(ValueError):
+        load_employee_report(fake_factory(), store.engine_config(), "302",
+                             date(2024, 1, 1), date(2026, 1, 1))
+    store.close()

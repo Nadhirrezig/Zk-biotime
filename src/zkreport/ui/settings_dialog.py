@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from zkreport.db.connection import DbParams
-from zkreport.engine.models import Holiday, LateMode, SchedulePeriod, ShiftDef
+from zkreport.engine.models import Holiday, SchedulePeriod, ShiftDef
 from zkreport.service import check_connection, db_repo_factory
 from zkreport.store import secrets
 from zkreport.store.settings_store import SettingsStore
@@ -279,14 +279,6 @@ class SettingsDialog(QDialog):
         return page
 
     def _rules_tab(self, v: dict) -> QWidget:
-        self.late_tol = _spin(0, 240, " min", int(v["late_tolerance_min"]),
-                              "Arrivée tolérée après l'heure de début")
-        self.early_tol = _spin(0, 240, " min", int(v["early_leave_tolerance_min"]),
-                               "Départ toléré avant l'heure de fin")
-        self.late_mode = QComboBox()
-        for mode in LateMode:
-            self.late_mode.addItem(fr.LATE_MODE[mode], mode.value)
-        self.late_mode.setCurrentIndex(self.late_mode.findData(v["late_mode"]))
         self.dup_window = _spin(0, 60, " min", int(v["duplicate_window_min"]),
                                 "Pointages répétés dans cet intervalle = un seul pointage")
         self.before = _spin(0, 720, " min", int(v["window_before_start_min"]),
@@ -294,19 +286,17 @@ class SettingsDialog(QDialog):
                             "ce délai avant le début")
         self.after = _spin(0, 720, " min", int(v["window_after_end_min"]),
                            "… et au plus tard ce délai après la fin")
-        self.ot = _spin(0, 600, " min", int(v["overtime_threshold_min"]),
-                        "Dépassement minimal après la fin pour compter des heures sup.")
         form = QFormLayout()
-        form.addRow("Tolérance de retard", self.late_tol)
-        form.addRow("Tolérance de départ anticipé", self.early_tol)
-        form.addRow("Calcul du retard", self.late_mode)
         form.addRow("Fenêtre des doublons", self.dup_window)
         form.addRow("Fenêtre avant le début d'équipe", self.before)
         form.addRow("Fenêtre après la fin d'équipe", self.after)
-        form.addRow("Seuil des heures sup.", self.ot)
+        note = QLabel("Ces réglages servent à rattacher chaque pointage à la bonne journée "
+                      "et à reconnaître les doubles badges (pointage répété).")
+        note.setWordWrap(True)
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.addLayout(form)
+        layout.addWidget(note)
         layout.addStretch(1)
         return page
 
@@ -484,12 +474,8 @@ class SettingsDialog(QDialog):
             "refresh_interval_sec": self.refresh.value(),
             "excluded_emp_codes": self.excluded.text().strip(),
             "duplicate_window_min": self.dup_window.value(),
-            "late_tolerance_min": self.late_tol.value(),
-            "early_leave_tolerance_min": self.early_tol.value(),
-            "late_mode": self.late_mode.currentData(),
             "window_before_start_min": self.before.value(),
             "window_after_end_min": self.after.value(),
-            "overtime_threshold_min": self.ot.value(),
         }
         if not values["db_host"] or not values["db_name"] or not values["db_user"]:
             raise ValueError("Hôte, base de données et utilisateur sont obligatoires")

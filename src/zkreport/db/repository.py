@@ -30,6 +30,13 @@ WHERE t.punch_time >= %s AND t.punch_time < %s
 ORDER BY t.emp_code, t.punch_time
 """
 
+SQL_PUNCHES_ONE = """
+SELECT t.emp_code, t.punch_time
+FROM iclock_transaction t
+WHERE t.punch_time >= %s AND t.punch_time < %s AND t.emp_code = %s
+ORDER BY t.punch_time
+"""
+
 SQL_LAST_PUNCH = "SELECT MAX(punch_time) FROM iclock_transaction"
 
 SQL_SERVER_INFO = """
@@ -65,8 +72,12 @@ class ZkRepository:
             for code, first, last, dept, resign in self._query(SQL_EMPLOYEES)
         ]
 
-    def punches(self, start: datetime, end: datetime) -> list[Punch]:
-        return [Punch(str(code), ts) for code, ts in self._query(SQL_PUNCHES, (start, end))]
+    def punches(self, start: datetime, end: datetime, emp_code: str | None = None) -> list[Punch]:
+        if emp_code is None:
+            rows = self._query(SQL_PUNCHES, (start, end))
+        else:
+            rows = self._query(SQL_PUNCHES_ONE, (start, end, emp_code))
+        return [Punch(str(code), ts) for code, ts in rows]
 
     def last_punch_time(self) -> datetime | None:
         return self._query(SQL_LAST_PUNCH)[0][0]

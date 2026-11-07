@@ -1,4 +1,4 @@
-"""Qt models for the daily attendance table."""
+"""Qt models for attendance tables (daily list and employee history)."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,23 +6,25 @@ from datetime import datetime
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QBrush, QColor
 
-from zkreport.engine.models import DayResult, Missing, Status
+from zkreport.engine.models import DayResult, Status
 
 from . import labels_fr as fr
 from . import theme
 
-COLUMNS = [
-    "Matricule", "Nom", "Département", "Horaire", "Arrivée", "Départ", "Pointages",
-    "Statut", "Anomalie", "Retard (min)", "Départ anticipé (min)", "Heures travaillées",
-    "Heures sup.",
-]
-C_CODE, C_NAME, C_DEPT, C_SHIFT, C_IN, C_OUT, C_COUNT, C_STATUS, C_ANOMALY, C_LATE, \
-    C_EARLY, C_WORKED, C_OT = range(len(COLUMNS))
+# Column keys
+CODE, NAME, DEPT, DATE, WEEKDAY, ARRIVAL, DEPARTURE, COUNT, STATUS = (
+    "code", "name", "dept", "date", "weekday", "arrival", "departure", "count", "status")
 
-BG_SINGLE = QColor(theme.ROW_SINGLE)
-BG_ABSENT = QColor(theme.ROW_ABSENT)
-FG_LATE = QColor(theme.LATE.text)
-FG_MUTED = QColor(theme.TEXT_MUTED)
+HEADERS = {
+    CODE: "Matricule", NAME: "Nom", DEPT: "Département", DATE: "Date", WEEKDAY: "Jour",
+    ARRIVAL: "Arrivée", DEPARTURE: "Départ", COUNT: "Pointages", STATUS: "Statut",
+}
+DAILY_COLUMNS = (CODE, NAME, DEPT, ARRIVAL, DEPARTURE, COUNT, STATUS)
+EMPLOYEE_COLUMNS = (DATE, WEEKDAY, ARRIVAL, DEPARTURE, COUNT, STATUS)
+NUMERIC = {COUNT}
+CENTERED = {ARRIVAL, DEPARTURE, COUNT, DATE, WEEKDAY}
+
+ROW_FILLS = {Status.SINGLE_PUNCH: theme.ROW_SINGLE, Status.ABSENT: theme.ROW_ABSENT}
 
 
 def _hm(dt: datetime | None, day) -> str:
@@ -37,9 +39,14 @@ def _code_key(code: str):
     return (0, int(code), "") if code.isdigit() else (1, 0, code)
 
 
-class DailyTableModel(QAbstractTableModel):
-    def __init__(self, parent=None):
+def row_fill(r: DayResult) -> str | None:
+    return ROW_FILLS.get(r.status)
+
+
+class ResultsTableModel(QAbstractTableModel):
+    def __init__(self, columns: tuple[str, ...], parent=None):
         super().__init__(parent)
+        self.columns = columns
         self._rows: list[DayResult] = []
 
     def set_rows(self, rows) -> None:
@@ -54,107 +61,86 @@ class DailyTableModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self._rows)
 
     def columnCount(self, parent=QModelIndex()) -> int:
-        return 0 if parent.isValid() else len(COLUMNS)
+        return 0 if parent.isValid() else len(self.columns)
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return COLUMNS[section]
+            return HEADERS[self.columns[section]]
         return None
 
     def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         r = self._rows[index.row()]
-        col = index.column()
+        key = self.columns[index.column()]
         if role == Qt.ItemDataRole.DisplayRole:
-            return self._display(r, col)
+            return display(r, key)
         if role == Qt.ItemDataRole.UserRole:  # sort key
-            return self._sort_key(r, col)
+            return sort_key(r, key)
         if role == Qt.ItemDataRole.BackgroundRole:
-            if r.status is Status.SINGLE_PUNCH:
-                return QBrush(BG_SINGLE)
-            if r.status is Status.ABSENT:
-                return QBrush(BG_ABSENT)
-        if role == Qt.ItemDataRole.ForegroundRole:
-            if col in (C_LATE, C_IN) and r.is_late:
-                return QBrush(FG_LATE)
-            if r.status in (Status.REST, Status.HOLIDAY, Status.LEAVE):
-                return QBrush(FG_MUTED)
-        if role == Qt.ItemDataRole.ToolTipRole:
-            if r.punches:
-                return "Pointages : " + ", ".join(t.strftime("%d/%m %H:%M") for t in r.punches)
-            if r.holiday_name:
-                return r.holiday_name
-        if role == Qt.ItemDataRole.TextAlignmentRole and col in (C_COUNT, C_LATE, C_EARLY,
-                                                                  C_WORKED, C_OT, C_IN, C_OUT):
+            fill = row_fill(r)
+            return QBrush(QColor(fill)) if fill else None
+        if role == Qt.ItemDataRole.ForegroundRole and r.status in (
+                Status.REST, Status.HOLIDAY, Status.LEAVE):
+            return QBrush(QColor(theme.TEXT_MUTED))
+        if role == Qt.ItemDataRole.ToolTipRole and r.punches:
+            return "Pointages : " + ", ".join(t.strftime("%d/%m %H:%M") for t in r.punches)
+        if role == Qt.ItemDataRole.TextAlignmentRole and key in CENTERED:
             return Qt.AlignmentFlag.AlignCenter
         return None
 
-    def _display(self, r: DayResult, col: int):
-        if col == C_CODE:
-            return r.emp_code
-        if col == C_NAME:
-            return fr.employee_label(r.name, r.emp_code)
-        if col == C_DEPT:
-            return r.department
-        if col == C_SHIFT:
-            if r.scheduled_start and r.scheduled_end:
-                return (f"{r.shift_name} {r.scheduled_start:%H:%M}–{r.scheduled_end:%H:%M}")
-            return r.shift_name or ""
-        if col == C_IN:
-            return _hm(r.arrival, r.day)
-        if col == C_OUT:
-            return _hm(r.departure, r.day)
-        if col == C_COUNT:
-            return str(r.punch_count) if r.punch_count else ""
-        if col == C_STATUS:
-            label = fr.STATUS[r.status]
-            return f"{label} ({r.holiday_name})" if r.status is Status.HOLIDAY and r.holiday_name \
-                else label
-        if col == C_ANOMALY:
-            parts = [fr.MISSING[r.missing]] if r.missing is not Missing.NONE else []
-            if r.unscheduled:
-                parts.append("Hors planning")
-            if r.holiday_name and r.is_present:
-                parts.append(f"Travail jour férié ({r.holiday_name})")
-            return " · ".join(parts)
-        if col == C_LATE:
-            return str(r.late_min) if r.late_min else ""
-        if col == C_EARLY:
-            return str(r.early_leave_min) if r.early_leave_min else ""
-        if col == C_WORKED:
-            return fr.minutes_hm(r.worked_min)
-        if col == C_OT:
-            return fr.minutes_hm(r.overtime_min)
-        return None
 
-    def _sort_key(self, r: DayResult, col: int):
-        if col == C_CODE:
-            return _code_key(r.emp_code)
-        if col == C_IN:
-            return r.arrival.timestamp() if r.arrival else float("inf")
-        if col == C_OUT:
-            return r.departure.timestamp() if r.departure else float("inf")
-        if col == C_COUNT:
-            return r.punch_count
-        if col == C_LATE:
-            return r.late_min
-        if col == C_EARLY:
-            return r.early_leave_min
-        if col == C_WORKED:
-            return r.worked_min
-        if col == C_OT:
-            return r.overtime_min
-        return str(self._display(r, col) or "").casefold()
+def display(r: DayResult, key: str) -> str:
+    if key == CODE:
+        return r.emp_code
+    if key == NAME:
+        return fr.employee_label(r.name, r.emp_code)
+    if key == DEPT:
+        return r.department
+    if key == DATE:
+        return r.day.strftime("%d/%m/%Y")
+    if key == WEEKDAY:
+        return fr.WEEKDAYS[r.day.weekday()]
+    if key == ARRIVAL:
+        return _hm(r.arrival, r.day)
+    if key == DEPARTURE:
+        return _hm(r.departure, r.day)
+    if key == COUNT:
+        return str(r.punch_count) if r.punch_count else ""
+    if key == STATUS:
+        return fr.status_text(r)
+    return ""
 
 
-class DailyFilterProxy(QSortFilterProxyModel):
+def sort_key(r: DayResult, key: str):
+    if key == CODE:
+        return _code_key(r.emp_code)
+    if key in (DATE, WEEKDAY):
+        return r.day.toordinal()
+    if key == ARRIVAL:
+        return r.arrival.timestamp() if r.arrival else float("inf")
+    if key == DEPARTURE:
+        return r.departure.timestamp() if r.departure else float("inf")
+    if key == COUNT:
+        return r.punch_count
+    return display(r, key).casefold()
+
+
+class ResultsFilterProxy(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._mode = fr.FILTER_ALL
         self._department = ""
         self._text = ""
         self.setSortRole(Qt.ItemDataRole.UserRole)
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @property
+    def department(self) -> str:
+        return self._department
 
     def set_mode(self, mode: str) -> None:
         self._mode = mode
@@ -183,6 +169,11 @@ class DailyFilterProxy(QSortFilterProxyModel):
             return False
         return matches_filter(r, self._mode)
 
+    def visible_rows(self) -> list[DayResult]:
+        source = self.sourceModel()
+        return [source.row_at(self.mapToSource(self.index(i, 0)).row())
+                for i in range(self.rowCount())]
+
 
 def matches_filter(r: DayResult, mode: str) -> bool:
     if mode == fr.FILTER_PRESENT:
@@ -193,6 +184,4 @@ def matches_filter(r: DayResult, mode: str) -> bool:
         return r.status is Status.SINGLE_PUNCH
     if mode == fr.FILTER_ABSENT:
         return r.status is Status.ABSENT
-    if mode == fr.FILTER_LATE:
-        return r.is_late
     return True
